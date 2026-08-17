@@ -16,7 +16,7 @@
 
 - **자유로운 맥락 입력:** 받는 사람과의 관계와 메시지 목적을 직접 작성합니다.
 - **채널별 문장 구성:** 카카오톡, Instagram DM, 이메일의 길이와 형식 차이를 반영합니다.
-- **AI 맥락 분석:** OpenAI 모델이 관계, 목적, 채널, 원문을 함께 해석합니다.
+- **AI 맥락 분석:** Groq에서 실행되는 오픈 모델이 관계, 목적, 채널, 원문을 함께 해석합니다.
 - **한국어·영어 지원:** 한국어 메시지뿐 아니라 영문 메시지와 영문 이메일도 작성할 수 있습니다.
 - **네 가지 결과 비교:** 원본, 기본형, 단호하게, 정중하게 중 원하는 표현을 선택합니다.
 - **원문 대조:** 사용자가 입력한 문장과 수정 결과를 나란히 확인할 수 있습니다.
@@ -45,7 +45,7 @@
 ```text
 send-or-not/
 ├─ app/
-│  ├─ api/rewrite/route.ts # OpenAI Responses API를 호출하는 서버 경로
+│  ├─ api/rewrite/route.ts # Groq Chat Completions API를 호출하는 서버 경로
 │  ├─ page.tsx          # 입력, 비교, 편집, 공유 화면
 │  ├─ globals.css       # 반응형 UI와 디자인 시스템
 │  └─ layout.tsx        # 메타데이터와 소셜 미리보기
@@ -61,7 +61,7 @@ send-or-not/
 
 - Next.js, React, TypeScript
 - Vinext, Vite, Cloudflare Workers
-- OpenAI Responses API, Structured Outputs
+- Groq Chat Completions API, Structured Outputs
 - Web Share API, Clipboard API
 - Node.js Test Runner, ESLint
 
@@ -77,7 +77,7 @@ copy .env.example .env.local
 npm run dev
 ```
 
-`.env.local`의 `OPENAI_API_KEY`에 본인의 서버용 API 키를 입력한 뒤, 개발 서버가 안내하는 로컬 주소를 브라우저에서 열면 됩니다. API 키는 `NEXT_PUBLIC_*` 변수나 클라이언트 코드에 넣지 않습니다.
+`.env.local`의 `GROQ_API_KEY`에 본인의 서버용 API 키를 입력한 뒤, 개발 서버가 안내하는 로컬 주소를 브라우저에서 열면 됩니다. API 키는 `NEXT_PUBLIC_*` 변수나 클라이언트 코드에 넣지 않습니다.
 
 ## 검증 명령어
 
@@ -89,7 +89,7 @@ npm run lint
 
 ## 구현 방식과 범위
 
-현재 버전은 브라우저가 `/api/rewrite` 서버 경로에 입력값을 전달하고, 서버가 OpenAI Responses API를 호출하는 구조입니다. API 키는 서버 환경 변수로만 관리하며 브라우저에 전달하지 않습니다.
+현재 버전은 브라우저가 `/api/rewrite` 서버 경로에 입력값을 전달하고, 서버가 Groq Chat Completions API를 호출하는 구조입니다. API 키는 서버 환경 변수로만 관리하며 브라우저에 전달하지 않습니다.
 
 AI는 다음 정보를 함께 해석합니다.
 
@@ -99,7 +99,7 @@ AI는 다음 정보를 함께 해석합니다.
 - 한국어 또는 영어 출력 조건
 - 원문에 포함된 압박감, 모호함, 비난 가능성
 
-응답은 Structured Outputs의 JSON Schema로 제한하여 분석 결과와 세 가지 대안 문장을 항상 같은 데이터 구조로 받습니다. 원본은 AI가 수정하지 않고 그대로 보존합니다. OpenAI 요청에는 `store: false`를 지정합니다.
+응답은 Structured Outputs의 JSON Schema로 제한하여 분석 결과와 세 가지 대안 문장을 항상 같은 데이터 구조로 받습니다. 원본은 AI가 수정하지 않고 그대로 보존합니다.
 
 실제 서비스로 확장할 경우에는 다음 기능을 추가할 수 있습니다.
 
@@ -111,4 +111,4 @@ AI는 다음 정보를 함께 해석합니다.
 
 ## 개인정보 안내
 
-이 프로젝트는 입력한 메시지를 자체 데이터베이스에 저장하지 않습니다. 다만 결과 생성을 위해 메시지가 OpenAI API로 전송됩니다. 실제 개인정보나 민감한 내용을 입력하지 말고, 사용 전에는 생성된 문장을 직접 확인해야 합니다.
+이 프로젝트는 입력한 메시지를 자체 데이터베이스에 저장하지 않습니다. 다만 결과 생성을 위해 메시지가 Groq API로 전송됩니다. 실제 개인정보나 민감한 내용을 입력하지 말고, 사용 전에는 생성된 문장을 직접 확인해야 합니다.

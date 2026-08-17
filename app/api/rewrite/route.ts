@@ -7,8 +7,8 @@ import {
   type ReviewRequest,
 } from "../../../lib/message";
 
-const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
-const DEFAULT_MODEL = "gpt-5.4-mini";
+const GROQ_CHAT_COMPLETIONS_URL = "https://api.groq.com/openai/v1/chat/completions";
+const DEFAULT_MODEL = "openai/gpt-oss-20b";
 const channels: MessageChannel[] = ["kakao", "instagram", "email"];
 const languages: OutputLanguage[] = ["ko", "en"];
 
@@ -51,7 +51,7 @@ const responseSchema = {
   additionalProperties: false,
 } as const;
 
-type OpenAIResult = {
+type RewriteResult = {
   analysis: {
     label: string;
     summary: string;
@@ -92,18 +92,10 @@ function readPayload(value: unknown): ReviewRequest | null {
 function extractOutputText(response: unknown) {
   if (!response || typeof response !== "object") return null;
   const result = response as {
-    output_text?: unknown;
-    output?: Array<{ type?: string; content?: Array<{ type?: string; text?: unknown }> }>;
+    choices?: Array<{ message?: { content?: unknown } }>;
   };
-  if (typeof result.output_text === "string") return result.output_text;
-
-  for (const item of result.output ?? []) {
-    if (item.type !== "message") continue;
-    for (const content of item.content ?? []) {
-      if (content.type === "output_text" && typeof content.text === "string") return content.text;
-    }
-  }
-  return null;
+  const content = result.choices?.[0]?.message?.content;
+  return typeof content === "string" ? content : null;
 }
 
 function buildInstructions() {
@@ -134,34 +126,39 @@ export async function POST(request: Request) {
 
   if (!payload) return jsonError("입력 내용을 다시 확인해주세요.", 400);
 
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) return jsonError("AI 연결 설정이 아직 완료되지 않았어요.", 503);
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 30_000);
 
   try {
-    const openAIResponse = await fetch(OPENAI_RESPONSES_URL, {
+    const groqResponse = await fetch(GROQ_CHAT_COMPLETIONS_URL, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: process.env.OPENAI_MODEL || DEFAULT_MODEL,
-        store: false,
-        max_output_tokens: 1800,
-        instructions: buildInstructions(),
-        input: JSON.stringify({
-          recipient: payload.recipient.trim() || "입력하지 않음",
-          purpose: payload.purpose.trim() || "입력하지 않음",
-          channel: channelLabels[payload.channel],
-          outputLanguage: languageLabels[payload.language],
-          originalMessage: payload.message.trim(),
-        }),
-        text: {
-          format: {
-            type: "json_schema",
+        model: process.env.GROQ_MODEL || DEFAULT_MODEL,
+        max_completion_tokens: 1800,
+        reasoning_effort: "low",
+        messages: [
+          { role: "system", content: buildInstructions() },
+          {
+            role: "user",
+            content: JSON.stringify({
+              recipient: payload.recipient.trim() || "입력하지 않음",
+              purpose: payload.purpose.trim() || "입력하지 않음",
+              channel: channelLabels[payload.channel],
+              outputLanguage: languageLabels[payload.language],
+              originalMessage: payload.message.trim(),
+            }),
+          },
+        ],
+        response_format: {
+          type: "json_schema",
+          json_schema: {
             name: "message_review",
             strict: true,
             schema: responseSchema,
@@ -171,17 +168,17 @@ export async function POST(request: Request) {
       signal: controller.signal,
     });
 
-    if (!openAIResponse.ok) {
-      const message = openAIResponse.status === 429
+    if (!groqResponse.ok) {
+      const message = groqResponse.status === 429
         ? "AI 요청이 잠시 많아요. 잠시 후 다시 시도해주세요."
         : "AI 문장을 생성하지 못했어요. 잠시 후 다시 시도해주세요.";
-      return jsonError(message, openAIResponse.status === 429 ? 429 : 502);
+      return jsonError(message, groqResponse.status === 429 ? 429 : 502);
     }
 
-    const outputText = extractOutputText(await openAIResponse.json());
+    const outputText = extractOutputText(await groqResponse.json());
     if (!outputText) return jsonError("AI가 결과를 완성하지 못했어요. 다시 시도해주세요.", 502);
 
-    const result = JSON.parse(outputText) as OpenAIResult;
+    const result = JSON.parse(outputText) as RewriteResult;
     return NextResponse.json({
       analysis: {
         ...result.analysis,
@@ -193,7 +190,7 @@ export async function POST(request: Request) {
         { label: "단호하게", note: "요청과 원하는 답을 명확하게", text: result.drafts.firm },
         { label: "정중하게", note: "상대의 상황을 고려한 표현", text: result.drafts.polite },
       ],
-      generatedBy: "openai",
+      generatedBy: "groq",
     }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     const message = error instanceof Error && error.name === "AbortError"

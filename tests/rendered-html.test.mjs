@@ -48,9 +48,9 @@ test("supports custom context, three channels, comparison, and two languages", a
     assert.match(apiRoute, new RegExp(`label: "${label}"`));
   }
   assert.match(page, /입력한 문장은 AI 결과 생성에만 사용해요/);
-  assert.match(apiRoute, /https:\/\/api\.openai\.com\/v1\/responses/);
-  assert.match(apiRoute, /process\.env\.OPENAI_API_KEY/);
-  assert.match(apiRoute, /store: false/);
+  assert.match(apiRoute, /https:\/\/api\.groq\.com\/openai\/v1\/chat\/completions/);
+  assert.match(apiRoute, /process\.env\.GROQ_API_KEY/);
+  assert.match(apiRoute, /openai\/gpt-oss-20b/);
   assert.match(apiRoute, /type: "json_schema"/);
   assert.doesNotMatch(messageModule, /makeDrafts|analyzeMessage/);
   assert.match(layout, /og\.png/);
