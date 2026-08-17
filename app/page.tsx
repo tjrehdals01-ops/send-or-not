@@ -134,19 +134,24 @@ function makeDrafts(
     const intent = englishIntent(purpose, message);
     return [
       {
-        label: "Professional",
+        label: "원본",
+        note: "입력한 문장 그대로",
+        text: message.trim(),
+      },
+      {
+        label: "기본형",
         note: "Formal and complete",
         text: `Subject: ${subject}\n\n${salutation},\n\nI hope you are doing well. ${intent}\n\nI would appreciate it if you could let me know when convenient.\n\nBest regards,\n[Your name]`,
       },
       {
-        label: "Concise",
-        note: "Short and direct",
-        text: `Subject: ${subject}\n\n${salutation},\n\n${intent}\n\nThank you for your time.\n\nBest,\n[Your name]`,
+        label: "단호하게",
+        note: "Direct with a clear request",
+        text: `Subject: ${subject}\n\n${salutation},\n\n${intent}\n\nPlease let me know whether this is possible.\n\nBest,\n[Your name]`,
       },
       {
-        label: "Warm",
-        note: "Polite and approachable",
-        text: `Subject: ${subject}\n\n${salutation},\n\nI hope your week is going well. ${intent}\n\nThank you for considering my request. I look forward to hearing from you.\n\nWarm regards,\n[Your name]`,
+        label: "정중하게",
+        note: "Considerate and formal",
+        text: `Subject: ${subject}\n\n${salutation},\n\nI hope your week is going well. ${intent}\n\nIf possible, I would be grateful if you could let me know at your convenience. Thank you for considering my request.\n\nWarm regards,\n[Your name]`,
       },
     ];
   }
@@ -157,36 +162,46 @@ function makeDrafts(
     if (channel === "instagram") {
       return [
         {
-          label: "Natural DM",
+          label: "원본",
+          note: "입력한 문장 그대로",
+          text: message.trim(),
+        },
+        {
+          label: "기본형",
           note: "Short and conversational",
           text: `Hi ${name}! ${base} Let me know what you think when you get a chance.`,
         },
         {
-          label: "Very short",
-          note: "Made for a quick DM",
-          text: `${base} Let me know when you can!`,
+          label: "단호하게",
+          note: "Clear and direct",
+          text: `Hi ${name}, ${base} Please let me know if you are interested.`,
         },
         {
-          label: "Warm",
-          note: "Friendly without overexplaining",
+          label: "정중하게",
+          note: "Friendly and considerate",
           text: `Hey ${name}, hope you're doing well! ${base} No rush—I'd appreciate your thoughts when you have time.`,
         },
       ];
     }
     return [
       {
-        label: "Natural",
+        label: "원본",
+        note: "입력한 문장 그대로",
+        text: message.trim(),
+      },
+      {
+        label: "기본형",
         note: "Clear without sounding stiff",
         text: `Hi ${name}, ${base} When you have a moment, could you let me know what you think?`,
       },
       {
-        label: "Concise",
-        note: "Only the essential point",
-        text: `${base} Please let me know when you can.`,
+        label: "단호하게",
+        note: "Direct with a clear ask",
+        text: `Hi ${name}, ${base} Please let me know whether this works for you.`,
       },
       {
-        label: "Polite",
-        note: "Adds a little more consideration",
+        label: "정중하게",
+        note: "Adds more consideration",
         text: `Hi ${name}, I hope you are doing well. ${base} I would really appreciate your thoughts when you have time.`,
       },
     ];
@@ -198,18 +213,23 @@ function makeDrafts(
     const body = endSentence(cleanMessage);
     return [
       {
+        label: "원본",
+        note: "입력한 문장 그대로",
+        text: message.trim(),
+      },
+      {
         label: "기본형",
         note: "제목부터 맺음말까지 갖춘 형식",
         text: `제목: ${subject}\n\n${greeting}.\n\n${body}\n\n확인 가능하실 때 답변 부탁드립니다.\n\n감사합니다.\n[이름]`,
       },
       {
-        label: "간결하게",
-        note: "용건과 요청을 바로 전달",
-        text: `제목: ${subject}\n\n${greeting}.\n\n${shortenKorean(body)}\n\n가능 여부를 알려주시면 감사하겠습니다.\n\n[이름] 드림`,
+        label: "단호하게",
+        note: "요청과 원하는 답을 분명하게",
+        text: `제목: ${subject}\n\n${greeting}.\n\n${shortenKorean(body)}\n\n가능 여부를 명확히 알려주시기 바랍니다.\n\n감사합니다.\n[이름]`,
       },
       {
-        label: "조금 부드럽게",
-        note: "부담을 낮춘 표현",
+        label: "정중하게",
+        note: "상대의 상황을 고려한 표현",
         text: `제목: ${subject}\n\n${greeting}.\n\n${softenKorean(body)}\n\n바쁘시겠지만 편하실 때 확인 부탁드립니다.\n\n감사합니다.\n[이름]`,
       },
     ];
@@ -219,35 +239,45 @@ function makeDrafts(
   if (channel === "instagram") {
     return [
       {
-        label: "DM답게",
-        note: "짧고 자연스럽게",
+        label: "원본",
+        note: "입력한 문장 그대로",
+        text: message.trim(),
+      },
+      {
+        label: "기본형",
+        note: "DM에 맞게 짧고 자연스럽게",
         text: softened,
       },
       {
-        label: "더 짧게",
-        note: "한 번에 읽히는 길이",
-        text: shortenKorean(softened),
+        label: "단호하게",
+        note: "원하는 답을 분명하게",
+        text: `${shortenKorean(softened)} 가능 여부를 알려주세요.`,
       },
       {
-        label: "부드럽게",
+        label: "정중하게",
         note: "갑작스러운 연락의 부담을 낮추기",
-        text: `갑자기 DM해서 미안해. ${softened}`,
+        text: `갑자기 DM드려 죄송합니다. ${softened} 편하실 때 답변 주시면 감사하겠습니다.`,
       },
     ];
   }
   return [
     {
-      label: "자연스럽게",
-      note: "원래 말투를 최대한 유지",
+      label: "원본",
+      note: "입력한 문장 그대로",
+      text: message.trim(),
+    },
+    {
+      label: "기본형",
+      note: "원래 말투를 유지하며 정리",
       text: softened,
     },
     {
-      label: "간결하게",
-      note: "핵심만 남긴 표현",
-      text: shortenKorean(softened),
+      label: "단호하게",
+      note: "원하는 답을 분명하게",
+      text: `${shortenKorean(softened)} 가능한지 알려줘.`,
     },
     {
-      label: "조금 더 정중하게",
+      label: "정중하게",
       note: "상대의 선택권을 남긴 표현",
       text: `${softened} 가능할 때 편하게 알려줘.`,
     },
@@ -313,7 +343,7 @@ export default function Home() {
   const [channel, setChannel] = useState<MessageChannel>("kakao");
   const [language, setLanguage] = useState<OutputLanguage>("ko");
   const [analyzed, setAnalyzed] = useState(false);
-  const [selectedOption, setSelectedOption] = useState(0);
+  const [selectedOption, setSelectedOption] = useState(1);
   const [editedDraft, setEditedDraft] = useState("");
   const [copied, setCopied] = useState(false);
   const [shared, setShared] = useState(false);
@@ -377,8 +407,8 @@ export default function Home() {
   const runCheck = () => {
     if (!message.trim()) return;
     const drafts = makeDrafts(recipient, purpose, message, channel, language);
-    setSelectedOption(0);
-    setEditedDraft(drafts[0].text);
+    setSelectedOption(1);
+    setEditedDraft(drafts[1].text);
     setAnalyzed(true);
     setCopied(false);
     setShared(false);

@@ -41,6 +41,9 @@ test("supports custom context, three channels, comparison, and two languages", a
   assert.match(page, /Subject:/);
   assert.match(page, /comparison-grid/);
   assert.match(page, /navigator\.share/);
+  for (const label of ["원본", "기본형", "단호하게", "정중하게"]) {
+    assert.match(page, new RegExp(`label: "${label}"`));
+  }
   assert.match(page, /입력한 문장은 저장하지 않아요/);
   assert.match(layout, /og\.png/);
   assert.doesNotMatch(page, /전 연인에게 연락|교수님·선배에게 질문/);

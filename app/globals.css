@@ -322,7 +322,7 @@ input::placeholder, textarea::placeholder { color: #a09f98; }
   border-bottom: 1px solid var(--line-dark);
   border-top: 1px solid var(--line-dark);
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   margin-top: 23px;
 }
 .option-list button {
