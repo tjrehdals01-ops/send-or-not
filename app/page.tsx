@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 
-type MessageFormat = "chat" | "email";
+type MessageChannel = "kakao" | "instagram" | "email";
 type OutputLanguage = "ko" | "en";
 
 type DraftOption = {
@@ -11,8 +11,9 @@ type DraftOption = {
   text: string;
 };
 
-const formatLabels: Record<MessageFormat, string> = {
-  chat: "메신저",
+const channelLabels: Record<MessageChannel, string> = {
+  kakao: "카카오톡",
+  instagram: "Instagram DM",
   email: "이메일",
 };
 
@@ -122,12 +123,12 @@ function makeDrafts(
   recipient: string,
   purpose: string,
   message: string,
-  format: MessageFormat,
+  channel: MessageChannel,
   language: OutputLanguage,
 ): DraftOption[] {
   const cleanMessage = normalize(message);
 
-  if (language === "en" && format === "email") {
+  if (language === "en" && channel === "email") {
     const subject = englishSubject(purpose);
     const salutation = englishSalutation(recipient);
     const intent = englishIntent(purpose, message);
@@ -153,6 +154,25 @@ function makeDrafts(
   if (language === "en") {
     const base = englishIntent(purpose, message);
     const name = isMostlyEnglish(recipient) ? normalize(recipient) : "there";
+    if (channel === "instagram") {
+      return [
+        {
+          label: "Natural DM",
+          note: "Short and conversational",
+          text: `Hi ${name}! ${base} Let me know what you think when you get a chance.`,
+        },
+        {
+          label: "Very short",
+          note: "Made for a quick DM",
+          text: `${base} Let me know when you can!`,
+        },
+        {
+          label: "Warm",
+          note: "Friendly without overexplaining",
+          text: `Hey ${name}, hope you're doing well! ${base} No rush—I'd appreciate your thoughts when you have time.`,
+        },
+      ];
+    }
     return [
       {
         label: "Natural",
@@ -172,7 +192,7 @@ function makeDrafts(
     ];
   }
 
-  if (format === "email") {
+  if (channel === "email") {
     const subject = purpose.trim() || "문의드립니다";
     const greeting = koreanRecipient(recipient);
     const body = endSentence(cleanMessage);
@@ -196,6 +216,25 @@ function makeDrafts(
   }
 
   const softened = softenKorean(cleanMessage);
+  if (channel === "instagram") {
+    return [
+      {
+        label: "DM답게",
+        note: "짧고 자연스럽게",
+        text: softened,
+      },
+      {
+        label: "더 짧게",
+        note: "한 번에 읽히는 길이",
+        text: shortenKorean(softened),
+      },
+      {
+        label: "부드럽게",
+        note: "갑작스러운 연락의 부담을 낮추기",
+        text: `갑자기 DM해서 미안해. ${softened}`,
+      },
+    ];
+  }
   return [
     {
       label: "자연스럽게",
@@ -219,7 +258,7 @@ function analyzeMessage(
   recipient: string,
   purpose: string,
   message: string,
-  format: MessageFormat,
+  channel: MessageChannel,
   language: OutputLanguage,
 ) {
   const findings: { phrase: string; reason: string }[] = [];
@@ -230,7 +269,7 @@ function analyzeMessage(
   if (!purpose.trim()) {
     findings.push({ phrase: "목적이 비어 있음", reason: "원하는 답이나 행동을 한 문장으로 정해보세요." });
   }
-  if (message.length > (format === "email" ? 600 : 180)) {
+  if (message.length > (channel === "email" ? 600 : channel === "instagram" ? 140 : 180)) {
     findings.push({ phrase: "문장이 긴 편", reason: "핵심 요청이 묻히지 않도록 내용을 나누는 편이 좋아요." });
   }
 
@@ -260,9 +299,9 @@ function analyzeMessage(
 
   return {
     label: findings.length >= 3 ? "맥락을 조금 더 보완해보세요" : findings.length >= 2 ? "몇 군데만 다듬으면 돼요" : "보내도 괜찮아 보여요",
-    summary: format === "email"
+    summary: channel === "email"
       ? `${languageLabels[language]} 이메일 형식에 맞춰 제목, 인사, 본문, 맺음말을 정리했어요.`
-      : `${languageLabels[language]} 메신저 문장으로 자연스럽게 읽히도록 정리했어요.`,
+      : `${languageLabels[language]} ${channelLabels[channel]} 문장으로 자연스럽게 읽히도록 정리했어요.`,
     findings: findings.slice(0, 4),
   };
 }
@@ -271,31 +310,33 @@ export default function Home() {
   const [recipient, setRecipient] = useState("");
   const [purpose, setPurpose] = useState("");
   const [message, setMessage] = useState("");
-  const [format, setFormat] = useState<MessageFormat>("chat");
+  const [channel, setChannel] = useState<MessageChannel>("kakao");
   const [language, setLanguage] = useState<OutputLanguage>("ko");
   const [analyzed, setAnalyzed] = useState(false);
   const [selectedOption, setSelectedOption] = useState(0);
   const [editedDraft, setEditedDraft] = useState("");
   const [copied, setCopied] = useState(false);
+  const [shared, setShared] = useState(false);
 
   const options = useMemo(
-    () => makeDrafts(recipient, purpose, message, format, language),
-    [recipient, purpose, message, format, language],
+    () => makeDrafts(recipient, purpose, message, channel, language),
+    [recipient, purpose, message, channel, language],
   );
   const analysis = useMemo(
-    () => analyzeMessage(recipient, purpose, message, format, language),
-    [recipient, purpose, message, format, language],
+    () => analyzeMessage(recipient, purpose, message, channel, language),
+    [recipient, purpose, message, channel, language],
   );
 
   const resetResult = () => {
     setAnalyzed(false);
     setCopied(false);
+    setShared(false);
   };
 
-  const changeFormat = (next: MessageFormat) => {
-    setFormat(next);
+  const changeChannel = (next: MessageChannel) => {
+    setChannel(next);
     resetResult();
-    track("select_format", { format: next });
+    track("select_channel", { channel: next });
   };
 
   const changeLanguage = (next: OutputLanguage) => {
@@ -305,18 +346,26 @@ export default function Home() {
   };
 
   const fillExample = () => {
-    if (language === "en" && format === "email") {
+    if (language === "en" && channel === "email") {
       setRecipient("Professor Kim");
       setPurpose("Request a one-day assignment extension");
       setMessage("I want to ask if I can submit the assignment one day late because of a personal matter");
+    } else if (language === "en" && channel === "instagram") {
+      setRecipient("A creator I follow");
+      setPurpose("Ask about a collaboration");
+      setMessage("I want to ask if you are interested in working together on a small campus project");
     } else if (language === "en") {
       setRecipient("Project teammate");
       setPurpose("Ask to move tomorrow's meeting");
       setMessage("Can you move our meeting to Thursday? I have another appointment tomorrow");
-    } else if (format === "email") {
+    } else if (channel === "email") {
       setRecipient("담당 교수님");
       setPurpose("과제 제출 기한 하루 연장 요청");
       setMessage("개인 사정으로 과제 준비가 늦어져 하루 늦게 제출해도 괜찮을지 문의드립니다");
+    } else if (channel === "instagram") {
+      setRecipient("처음 연락하는 동아리 계정 운영자");
+      setPurpose("행사 협업 가능 여부 문의");
+      setMessage("안녕하세요 갑자기 DM드려서 죄송한데 이번 행사 때 같이 협업할 수 있을지 여쭤보고 싶어요");
     } else {
       setRecipient("같이 과제하는 팀원");
       setPurpose("회의 시간을 목요일로 변경 요청");
@@ -327,12 +376,13 @@ export default function Home() {
 
   const runCheck = () => {
     if (!message.trim()) return;
-    const drafts = makeDrafts(recipient, purpose, message, format, language);
+    const drafts = makeDrafts(recipient, purpose, message, channel, language);
     setSelectedOption(0);
     setEditedDraft(drafts[0].text);
     setAnalyzed(true);
     setCopied(false);
-    track("submit_message", { format, language });
+    setShared(false);
+    track("submit_message", { channel, language });
     window.setTimeout(() => document.getElementById("result")?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
   };
 
@@ -340,13 +390,32 @@ export default function Home() {
     setSelectedOption(index);
     setEditedDraft(options[index].text);
     setCopied(false);
+    setShared(false);
     track("select_tone", { tone: options[index].label });
   };
 
   const copyDraft = async () => {
     await navigator.clipboard.writeText(editedDraft);
     setCopied(true);
-    track("copy_message", { format, language, tone: options[selectedOption].label });
+    track("copy_message", { channel, language, tone: options[selectedOption].label });
+  };
+
+  const shareDraft = async () => {
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: channel === "email" ? (language === "en" ? englishSubject(purpose) : purpose.trim() || "메일 초안") : undefined,
+          text: editedDraft,
+        });
+        setShared(true);
+        track("share_message", { channel, language });
+        return;
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+      }
+    }
+    await navigator.clipboard.writeText(editedDraft);
+    setCopied(true);
   };
 
   return (
@@ -359,7 +428,7 @@ export default function Home() {
 
       <div className="notice-bar">
         <span>입력한 문장은 저장하지 않아요.</span>
-        <span>한국어와 영어, 메신저와 이메일을 지원해요.</span>
+        <span>카카오톡·Instagram DM·이메일에 맞춰 정리해요.</span>
       </div>
 
       <section className="intro" id="main">
@@ -411,11 +480,11 @@ export default function Home() {
 
           <div className="format-row">
             <fieldset>
-              <legend>보낼 형식</legend>
-              <div>
-                {(Object.keys(formatLabels) as MessageFormat[]).map((key) => (
-                  <button key={key} type="button" aria-pressed={format === key} className={format === key ? "active" : ""} onClick={() => changeFormat(key)}>
-                    {formatLabels[key]}
+              <legend>보낼 곳</legend>
+              <div className="channel-options">
+                {(Object.keys(channelLabels) as MessageChannel[]).map((key) => (
+                  <button key={key} type="button" aria-pressed={channel === key} className={channel === key ? "active" : ""} onClick={() => changeChannel(key)}>
+                    {channelLabels[key]}
                   </button>
                 ))}
               </div>
@@ -450,7 +519,7 @@ export default function Home() {
               id="message"
               maxLength={1000}
               value={message}
-              placeholder={format === "email" ? "메일에 담고 싶은 내용을 편하게 적어주세요." : "지금 보내려던 말을 그대로 적어주세요."}
+              placeholder={channel === "email" ? "메일에 담고 싶은 내용을 편하게 적어주세요." : "지금 보내려던 말을 그대로 적어주세요."}
               onChange={(event) => {
                 setMessage(event.target.value);
                 resetResult();
@@ -482,7 +551,7 @@ export default function Home() {
           <div className="context-summary">
             <div><span>받는 사람</span><strong>{recipient.trim() || "입력하지 않음"}</strong></div>
             <div><span>목적</span><strong>{purpose.trim() || "입력하지 않음"}</strong></div>
-            <div><span>형식</span><strong>{formatLabels[format]}</strong></div>
+            <div><span>보낼 곳</span><strong>{channelLabels[channel]}</strong></div>
             <div><span>언어</span><strong>{languageLabels[language]}</strong></div>
           </div>
 
@@ -507,7 +576,7 @@ export default function Home() {
 
             <div className="suggestion-panel">
               <div className="suggestion-heading">
-                <div><h3>{format === "email" ? "완성된 메일" : "대안 문장"}</h3><p>가까운 표현을 고른 뒤 직접 고쳐서 사용하세요.</p></div>
+                <div><h3>{channel === "email" ? "완성된 메일" : "대안 문장"}</h3><p>원문과 나란히 비교한 뒤 직접 고쳐서 사용하세요.</p></div>
                 <span>직접 수정 가능</span>
               </div>
 
@@ -519,22 +588,31 @@ export default function Home() {
                 ))}
               </div>
 
-              <label className="result-draft" htmlFor="edited-draft">
-                <span>{format === "email" ? "메일 초안" : "보낼 문장"}</span>
-                <textarea
-                  id="edited-draft"
-                  lang={language}
-                  value={editedDraft}
-                  onChange={(event) => {
-                    setEditedDraft(event.target.value);
-                    setCopied(false);
-                  }}
-                />
-              </label>
+              <div className="comparison-grid">
+                <div className="original-message">
+                  <div><span>원문</span><small>{message.length}자</small></div>
+                  <p>{message}</p>
+                </div>
+                <label className="result-draft" htmlFor="edited-draft">
+                  <span>{channel === "email" ? "메일 초안" : "수정 문장"}</span>
+                  <textarea
+                    id="edited-draft"
+                    lang={language}
+                    value={editedDraft}
+                    onChange={(event) => {
+                      setEditedDraft(event.target.value);
+                      setCopied(false);
+                      setShared(false);
+                    }}
+                  />
+                </label>
+              </div>
 
               <div className="result-actions">
+                <button type="button" className="share-button" onClick={shareDraft}>{shared ? "공유했어요" : "앱으로 공유"}</button>
                 <button type="button" className="copy-button" onClick={copyDraft}>{copied ? "복사했어요" : "전체 문장 복사"}</button>
               </div>
+              <p className="share-note">휴대폰에서는 공유 창에서 카카오톡이나 Instagram을 선택할 수 있어요.</p>
             </div>
           </div>
 
@@ -560,7 +638,7 @@ export default function Home() {
         <dl>
           <div><dt>01. 관계</dt><dd>누가 받는 말인지</dd></div>
           <div><dt>02. 목적</dt><dd>어떤 답이나 행동을 원하는지</dd></div>
-          <div><dt>03. 형식</dt><dd>메신저인지 공식 이메일인지</dd></div>
+          <div><dt>03. 채널</dt><dd>카카오톡, DM, 이메일 중 어디로 보낼지</dd></div>
           <div><dt>04. 언어</dt><dd>한국어와 영어 중 무엇이 자연스러운지</dd></div>
         </dl>
       </section>

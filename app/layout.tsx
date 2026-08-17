@@ -17,16 +17,16 @@ export async function generateMetadata(): Promise<Metadata> {
 
   return {
     title: "보내도 돼? — 누구에게든, 보내기 전 한 번 더",
-    description: "받는 사람과 목적을 직접 정하고, 한국어·영어 메시지와 이메일을 점검하세요.",
+    description: "받는 사람과 목적을 정하고, 카카오톡·Instagram DM·이메일 문장을 한국어와 영어로 점검하세요.",
     openGraph: {
       title: "보내도 돼?",
-      description: "받는 사람과 목적에 맞춰 한국어·영어 메시지를 점검하는 도구",
+      description: "카카오톡·DM·이메일의 원문과 수정문을 비교하는 메시지 점검 도구",
       images: [{ url: imageUrl, width: 1678, height: 941 }],
     },
     twitter: {
       card: "summary_large_image",
       title: "보내도 돼?",
-      description: "받는 사람과 목적에 맞춰 한국어·영어 메시지를 점검하는 도구",
+      description: "카카오톡·DM·이메일의 원문과 수정문을 비교하는 메시지 점검 도구",
       images: [imageUrl],
     },
     icons: {
