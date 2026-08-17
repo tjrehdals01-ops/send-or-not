@@ -2,126 +2,23 @@
 
 import { useMemo, useState } from "react";
 
-type ModeKey = "ex" | "professor" | "refusal" | "reply";
-type MoodKey = "calm" | "emotional" | "drunk";
+type MessageFormat = "chat" | "email";
+type OutputLanguage = "ko" | "en";
 
-type Mode = {
-  key: ModeKey;
+type DraftOption = {
   label: string;
-  description: string;
-  placeholder: string;
-  example: string;
+  note: string;
+  text: string;
 };
 
-const modes: Mode[] = [
-  {
-    key: "ex",
-    label: "전 연인에게 연락",
-    description: "감정이 앞선 연락인지 확인해요.",
-    placeholder: "지금 보내려는 말을 그대로 적어주세요.",
-    example: "자니? 나 아직도 네 생각나는데… 한 번만 얘기하면 안 돼?",
-  },
-  {
-    key: "professor",
-    label: "교수님·선배에게 질문",
-    description: "신원, 목적, 요청을 분명히 해요.",
-    placeholder: "길게 적은 문장도 괜찮아요. 핵심부터 살펴볼게요.",
-    example:
-      "교수님 안녕하세요. 신인류 AI 사피엔스 수강 중인 김민수입니다. 개인 사정이 있어 과제를 하루 늦게 제출해도 괜찮을지 문의드립니다.",
-  },
-  {
-    key: "refusal",
-    label: "부탁이나 약속 거절",
-    description: "예의는 지키고 뜻은 분명히 해요.",
-    placeholder: "미안해서 돌려 말한 문장도 그대로 적어주세요.",
-    example:
-      "불러줘서 진짜 고마운데 이번 주는 이것저것 일이 좀 있어서 아마 어려울 것 같아. 다음에 상황 되면 다시 얘기하자!",
-  },
-  {
-    key: "reply",
-    label: "답하기 어려운 대화",
-    description: "감정과 사실을 나눠서 정리해요.",
-    placeholder: "답하기 막막한 메시지라면 초안 그대로 적어주세요.",
-    example:
-      "네가 그렇게 느낀 건 알겠는데 나도 나름의 이유가 있었고 계속 내 잘못이라고만 하는 건 솔직히 이해가 안 돼.",
-  },
-];
-
-const moodLabels: Record<MoodKey, string> = {
-  calm: "차분한 편",
-  emotional: "감정이 큰 편",
-  drunk: "술을 마심",
+const formatLabels: Record<MessageFormat, string> = {
+  chat: "메신저",
+  email: "이메일",
 };
 
-const rewriteOptions: Record<ModeKey, { label: string; note: string; text: string }[]> = {
-  ex: [
-    {
-      label: "오늘은 보류",
-      note: "감정이 가라앉은 뒤 다시 결정하기",
-      text: "지금은 감정이 커서 바로 연락하지 않고, 내일 다시 생각해볼게.",
-    },
-    {
-      label: "부담 없이",
-      note: "답장을 재촉하지 않는 표현",
-      text: "문득 생각나서 연락했어. 갑작스러웠다면 답하지 않아도 괜찮아.",
-    },
-    {
-      label: "대화 제안",
-      note: "상대에게 선택권을 남기는 표현",
-      text: "괜찮다면 이번 주에 잠깐 이야기할 수 있을까? 불편하면 편하게 거절해도 돼.",
-    },
-  ],
-  professor: [
-    {
-      label: "기본형",
-      note: "신원, 용건, 질문 순서",
-      text: "교수님 안녕하세요. 신인류 AI 사피엔스 수강생 김민수입니다. 개인 사정으로 과제를 하루 늦게 제출해도 되는지 문의드립니다. 가능 여부를 알려주시면 감사하겠습니다.",
-    },
-    {
-      label: "간결하게",
-      note: "바로 답할 수 있는 질문으로",
-      text: "교수님 안녕하세요, 김민수입니다. 과제를 하루 늦게 제출할 수 있는지 문의드립니다. 어렵다면 기존 기한에 맞추겠습니다.",
-    },
-    {
-      label: "사유 포함",
-      note: "설명은 짧고 책임은 분명하게",
-      text: "교수님 안녕하세요. 김민수입니다. 개인 사정으로 제출 준비가 늦어져 과제를 하루 연장할 수 있는지 여쭙습니다. 어려울 경우 기존 기한을 지키겠습니다.",
-    },
-  ],
-  refusal: [
-    {
-      label: "부드럽게",
-      note: "고마움은 남기고 기대는 줄이기",
-      text: "불러줘서 고마워. 이번 주는 일정이 어려워서 함께하지 못할 것 같아. 즐거운 시간 보내!",
-    },
-    {
-      label: "분명하게",
-      note: "애매한 여지를 남기지 않기",
-      text: "제안해줘서 고마워. 이번에는 참여하지 않을게. 이해해주면 고마워.",
-    },
-    {
-      label: "짧게",
-      note: "불필요한 설명을 덧붙이지 않기",
-      text: "불러줘서 고마워. 이번에는 참석하기 어려워.",
-    },
-  ],
-  reply: [
-    {
-      label: "대화 이어가기",
-      note: "상대 감정을 먼저 인정하기",
-      text: "네가 그렇게 느꼈다는 건 이해해. 내 입장도 차분히 설명하고 싶은데, 우리 감정이 가라앉은 뒤 이야기하면 좋겠어.",
-    },
-    {
-      label: "경계 세우기",
-      note: "동의하기 어려운 부분을 분명히 하기",
-      text: "네 감정은 이해하지만 모든 책임이 내게 있다는 말에는 동의하기 어려워. 비난 없이 이야기할 수 있을 때 다시 대화하고 싶어.",
-    },
-    {
-      label: "대화 멈추기",
-      note: "지금 답하지 않겠다고 알리기",
-      text: "지금은 감정적으로 답할 것 같아. 조금 정리한 뒤 다시 이야기할게.",
-    },
-  ],
+const languageLabels: Record<OutputLanguage, string> = {
+  ko: "한국어",
+  en: "English",
 };
 
 function track(event: string, detail?: Record<string, string>) {
@@ -131,100 +28,311 @@ function track(event: string, detail?: Record<string, string>) {
   target.dataLayer.push({ event, ...detail });
 }
 
-function analyzeMessage(mode: ModeKey, mood: MoodKey, message: string) {
-  const findings: { phrase: string; reason: string }[] = [];
-  const checks = [
-    { words: ["자니", "보고 싶", "생각나"], reason: "외로운 순간의 감정이 결정에 크게 반영된 표현이에요." },
-    { words: ["한 번만", "제발", "답장해"], reason: "상대에게 답을 재촉하는 느낌을 줄 수 있어요." },
-    { words: ["아마", "것 같아", "상황 되면"], reason: "거절의 뜻이 흐려져 상대가 다시 기대할 수 있어요." },
-    { words: ["이해가 안 돼", "네 잘못", "항상", "맨날"], reason: "내용보다 비난으로 읽힐 가능성이 있어요." },
+function normalize(text: string) {
+  return text.replace(/\s+/g, " ").trim();
+}
+
+function isMostlyEnglish(text: string) {
+  const letters = text.match(/[A-Za-z가-힣]/g) || [];
+  const english = text.match(/[A-Za-z]/g) || [];
+  return letters.length > 0 && english.length / letters.length > 0.65;
+}
+
+function endSentence(text: string) {
+  const clean = normalize(text);
+  if (!clean) return clean;
+  return /[.!?]$/.test(clean) ? clean : `${clean}.`;
+}
+
+function polishEnglish(text: string) {
+  return endSentence(text)
+    .replace(/\bI want to\b/gi, "I would like to")
+    .replace(/\bCan you\b/gi, "Could you")
+    .replace(/\bASAP\b/g, "when convenient")
+    .replace(/\bYou must\b/gi, "Could you please");
+}
+
+function englishSubject(purpose: string) {
+  if (isMostlyEnglish(purpose)) return normalize(purpose).replace(/[.!?]+$/, "");
+  if (/과제|제출|기한|연장/.test(purpose)) return "Request Regarding Assignment Submission";
+  if (/면담|미팅|회의/.test(purpose)) return "Meeting Request";
+  if (/일정|시간|날짜/.test(purpose)) return "Schedule Coordination";
+  if (/지원|채용|면접/.test(purpose)) return "Follow-up Regarding My Application";
+  if (/사과|미안/.test(purpose)) return "Apology and Follow-up";
+  if (/감사|고마/.test(purpose)) return "Thank You";
+  if (/문의|질문|확인/.test(purpose)) return "A Quick Question";
+  return "Regarding Our Conversation";
+}
+
+function englishIntent(purpose: string, message: string) {
+  if (isMostlyEnglish(message)) return polishEnglish(message);
+  if (/과제|제출|기한|연장/.test(`${purpose} ${message}`)) {
+    return "I am writing to ask whether a short extension on the assignment might be possible due to a personal matter.";
+  }
+  if (/면담|미팅|회의/.test(`${purpose} ${message}`)) {
+    return "I am writing to ask if we could arrange a brief meeting at a time that works for you.";
+  }
+  if (/일정|시간|날짜/.test(`${purpose} ${message}`)) {
+    return "I am writing to ask whether we could adjust the schedule to a time that works for both of us.";
+  }
+  if (/지원|채용|면접/.test(`${purpose} ${message}`)) {
+    return "I am writing to follow up on my application and ask whether there are any updates you could share.";
+  }
+  if (/사과|미안/.test(`${purpose} ${message}`)) {
+    return "I wanted to apologize for the situation and explain my circumstances more clearly.";
+  }
+  if (/감사|고마/.test(`${purpose} ${message}`)) {
+    return "I wanted to thank you for your time and support.";
+  }
+  return "I am writing to share a brief update and ask for your thoughts when you have a moment.";
+}
+
+function englishSalutation(recipient: string) {
+  const clean = normalize(recipient);
+  if (!clean) return "Hello";
+  if (isMostlyEnglish(clean)) return `Dear ${clean}`;
+  if (/교수/.test(clean)) return "Dear Professor";
+  if (/담당자|채용|인사/.test(clean)) return "Dear Hiring Team";
+  if (/고객|클라이언트/.test(clean)) return "Dear Client";
+  return "Hello";
+}
+
+function koreanRecipient(recipient: string) {
+  const clean = normalize(recipient);
+  if (!clean) return "안녕하세요";
+  if (/님$|교수님$|선생님$/.test(clean)) return `${clean}, 안녕하세요`;
+  return `${clean}님, 안녕하세요`;
+}
+
+function shortenKorean(text: string) {
+  const clean = normalize(text);
+  const sentences = clean.split(/(?<=[.!?。])\s+/).filter(Boolean);
+  return sentences.slice(0, 2).join(" ") || clean;
+}
+
+function softenKorean(text: string) {
+  return endSentence(text)
+    .replace(/제발/g, "가능하다면")
+    .replace(/당장/g, "가능한 때")
+    .replace(/답장해/g, "확인되면 알려줘")
+    .replace(/왜 안/g, "혹시 확인이 어려웠는지");
+}
+
+function makeDrafts(
+  recipient: string,
+  purpose: string,
+  message: string,
+  format: MessageFormat,
+  language: OutputLanguage,
+): DraftOption[] {
+  const cleanMessage = normalize(message);
+
+  if (language === "en" && format === "email") {
+    const subject = englishSubject(purpose);
+    const salutation = englishSalutation(recipient);
+    const intent = englishIntent(purpose, message);
+    return [
+      {
+        label: "Professional",
+        note: "Formal and complete",
+        text: `Subject: ${subject}\n\n${salutation},\n\nI hope you are doing well. ${intent}\n\nI would appreciate it if you could let me know when convenient.\n\nBest regards,\n[Your name]`,
+      },
+      {
+        label: "Concise",
+        note: "Short and direct",
+        text: `Subject: ${subject}\n\n${salutation},\n\n${intent}\n\nThank you for your time.\n\nBest,\n[Your name]`,
+      },
+      {
+        label: "Warm",
+        note: "Polite and approachable",
+        text: `Subject: ${subject}\n\n${salutation},\n\nI hope your week is going well. ${intent}\n\nThank you for considering my request. I look forward to hearing from you.\n\nWarm regards,\n[Your name]`,
+      },
+    ];
+  }
+
+  if (language === "en") {
+    const base = englishIntent(purpose, message);
+    const name = isMostlyEnglish(recipient) ? normalize(recipient) : "there";
+    return [
+      {
+        label: "Natural",
+        note: "Clear without sounding stiff",
+        text: `Hi ${name}, ${base} When you have a moment, could you let me know what you think?`,
+      },
+      {
+        label: "Concise",
+        note: "Only the essential point",
+        text: `${base} Please let me know when you can.`,
+      },
+      {
+        label: "Polite",
+        note: "Adds a little more consideration",
+        text: `Hi ${name}, I hope you are doing well. ${base} I would really appreciate your thoughts when you have time.`,
+      },
+    ];
+  }
+
+  if (format === "email") {
+    const subject = purpose.trim() || "문의드립니다";
+    const greeting = koreanRecipient(recipient);
+    const body = endSentence(cleanMessage);
+    return [
+      {
+        label: "기본형",
+        note: "제목부터 맺음말까지 갖춘 형식",
+        text: `제목: ${subject}\n\n${greeting}.\n\n${body}\n\n확인 가능하실 때 답변 부탁드립니다.\n\n감사합니다.\n[이름]`,
+      },
+      {
+        label: "간결하게",
+        note: "용건과 요청을 바로 전달",
+        text: `제목: ${subject}\n\n${greeting}.\n\n${shortenKorean(body)}\n\n가능 여부를 알려주시면 감사하겠습니다.\n\n[이름] 드림`,
+      },
+      {
+        label: "조금 부드럽게",
+        note: "부담을 낮춘 표현",
+        text: `제목: ${subject}\n\n${greeting}.\n\n${softenKorean(body)}\n\n바쁘시겠지만 편하실 때 확인 부탁드립니다.\n\n감사합니다.\n[이름]`,
+      },
+    ];
+  }
+
+  const softened = softenKorean(cleanMessage);
+  return [
+    {
+      label: "자연스럽게",
+      note: "원래 말투를 최대한 유지",
+      text: softened,
+    },
+    {
+      label: "간결하게",
+      note: "핵심만 남긴 표현",
+      text: shortenKorean(softened),
+    },
+    {
+      label: "조금 더 정중하게",
+      note: "상대의 선택권을 남긴 표현",
+      text: `${softened} 가능할 때 편하게 알려줘.`,
+    },
   ];
+}
+
+function analyzeMessage(
+  recipient: string,
+  purpose: string,
+  message: string,
+  format: MessageFormat,
+  language: OutputLanguage,
+) {
+  const findings: { phrase: string; reason: string }[] = [];
+
+  if (!recipient.trim()) {
+    findings.push({ phrase: "받는 사람 정보 없음", reason: "관계를 적으면 말투와 호칭을 더 정확히 정할 수 있어요." });
+  }
+  if (!purpose.trim()) {
+    findings.push({ phrase: "목적이 비어 있음", reason: "원하는 답이나 행동을 한 문장으로 정해보세요." });
+  }
+  if (message.length > (format === "email" ? 600 : 180)) {
+    findings.push({ phrase: "문장이 긴 편", reason: "핵심 요청이 묻히지 않도록 내용을 나누는 편이 좋아요." });
+  }
+
+  const checks = language === "en"
+    ? [
+        { words: ["ASAP", "immediately"], reason: "The timing may sound more demanding than intended." },
+        { words: ["You must", "Why didn't"], reason: "This can sound accusatory. A request-focused sentence is clearer." },
+        { words: ["!!!", "???"], reason: "Repeated punctuation can make the tone feel emotional." },
+      ]
+    : [
+        { words: ["제발", "한 번만", "답장해"], reason: "상대에게 답을 재촉하는 느낌을 줄 수 있어요." },
+        { words: ["아마", "것 같아", "상황 되면"], reason: "결론이 흐려져 상대가 뜻을 다르게 이해할 수 있어요." },
+        { words: ["이해가 안 돼", "네 잘못", "맨날"], reason: "내용보다 비난으로 읽힐 가능성이 있어요." },
+      ];
 
   for (const check of checks) {
-    const phrase = check.words.find((word) => message.includes(word));
+    const phrase = check.words.find((word) => message.toLowerCase().includes(word.toLowerCase()));
     if (phrase) findings.push({ phrase, reason: check.reason });
   }
 
-  if (message.length > 140) {
-    findings.push({ phrase: "문장이 긴 편", reason: "상대가 답해야 할 핵심 질문이 묻힐 수 있어요." });
-  }
-  if (mode === "professor" && !message.includes("안녕하세요")) {
-    findings.push({ phrase: "인사와 신원", reason: "첫 연락이라면 짧은 인사와 소속을 먼저 적는 편이 좋아요." });
-  }
-  if (mode === "ex" && mood !== "calm") {
-    findings.unshift({
-      phrase: mood === "drunk" ? "술을 마신 상태" : "감정이 큰 상태",
-      reason: "지금의 확신이 내일도 같은지 확인할 시간이 필요해요.",
-    });
+  if (language === "en" && !isMostlyEnglish(message)) {
+    findings.push({ phrase: "영문으로 전환", reason: "직역보다 목적과 형식에 맞게 새로 구성한 문장을 제안해요." });
   }
   if (findings.length === 0) {
-    findings.push({ phrase: "뚜렷한 위험 표현 없음", reason: "보내기 전 원하는 답이 무엇인지만 다시 확인해보세요." });
+    findings.push({ phrase: "큰 위험 표현 없음", reason: "받는 사람, 목적, 요청이 서로 맞는지만 마지막으로 확인하세요." });
   }
 
-  const needsPause = mode === "ex" && mood !== "calm";
-  const needsReview = findings.length >= 2 || mood === "drunk";
-
-  if (needsPause) {
-    return {
-      key: "pause",
-      label: "오늘은 보류를 권해요",
-      summary: "문장보다 지금의 상태가 더 큰 변수예요. 내일 같은 마음인지 먼저 확인해보세요.",
-      findings: findings.slice(0, 3),
-    };
-  }
-  if (needsReview) {
-    return {
-      key: "review",
-      label: "조금 다듬고 보내세요",
-      summary: "뜻은 충분히 전달돼요. 다만 아래 표현을 정리하면 오해를 줄일 수 있어요.",
-      findings: findings.slice(0, 3),
-    };
-  }
   return {
-    key: "ready",
-    label: "보내도 괜찮아 보여요",
-    summary: "큰 위험 신호는 없어요. 마지막으로 받는 사람과 목적이 맞는지만 확인하세요.",
-    findings: findings.slice(0, 3),
+    label: findings.length >= 3 ? "맥락을 조금 더 보완해보세요" : findings.length >= 2 ? "몇 군데만 다듬으면 돼요" : "보내도 괜찮아 보여요",
+    summary: format === "email"
+      ? `${languageLabels[language]} 이메일 형식에 맞춰 제목, 인사, 본문, 맺음말을 정리했어요.`
+      : `${languageLabels[language]} 메신저 문장으로 자연스럽게 읽히도록 정리했어요.`,
+    findings: findings.slice(0, 4),
   };
 }
 
 export default function Home() {
-  const [mode, setMode] = useState<ModeKey>("ex");
-  const [mood, setMood] = useState<MoodKey>("emotional");
-  const [message, setMessage] = useState("");
+  const [recipient, setRecipient] = useState("");
   const [purpose, setPurpose] = useState("");
+  const [message, setMessage] = useState("");
+  const [format, setFormat] = useState<MessageFormat>("chat");
+  const [language, setLanguage] = useState<OutputLanguage>("ko");
   const [analyzed, setAnalyzed] = useState(false);
   const [selectedOption, setSelectedOption] = useState(0);
-  const [editedDraft, setEditedDraft] = useState(rewriteOptions.ex[0].text);
+  const [editedDraft, setEditedDraft] = useState("");
   const [copied, setCopied] = useState(false);
-  const [held, setHeld] = useState(false);
 
-  const activeMode = modes.find((item) => item.key === mode) || modes[0];
-  const options = rewriteOptions[mode];
-  const analysis = useMemo(() => analyzeMessage(mode, mood, message), [mode, mood, message]);
+  const options = useMemo(
+    () => makeDrafts(recipient, purpose, message, format, language),
+    [recipient, purpose, message, format, language],
+  );
+  const analysis = useMemo(
+    () => analyzeMessage(recipient, purpose, message, format, language),
+    [recipient, purpose, message, format, language],
+  );
 
   const resetResult = () => {
     setAnalyzed(false);
     setCopied(false);
-    setHeld(false);
   };
 
-  const selectMode = (nextMode: ModeKey) => {
-    setMode(nextMode);
-    setSelectedOption(0);
-    setEditedDraft(rewriteOptions[nextMode][0].text);
+  const changeFormat = (next: MessageFormat) => {
+    setFormat(next);
     resetResult();
-    track("select_situation", { situation: nextMode });
+    track("select_format", { format: next });
+  };
+
+  const changeLanguage = (next: OutputLanguage) => {
+    setLanguage(next);
+    resetResult();
+    track("select_language", { language: next });
+  };
+
+  const fillExample = () => {
+    if (language === "en" && format === "email") {
+      setRecipient("Professor Kim");
+      setPurpose("Request a one-day assignment extension");
+      setMessage("I want to ask if I can submit the assignment one day late because of a personal matter");
+    } else if (language === "en") {
+      setRecipient("Project teammate");
+      setPurpose("Ask to move tomorrow's meeting");
+      setMessage("Can you move our meeting to Thursday? I have another appointment tomorrow");
+    } else if (format === "email") {
+      setRecipient("담당 교수님");
+      setPurpose("과제 제출 기한 하루 연장 요청");
+      setMessage("개인 사정으로 과제 준비가 늦어져 하루 늦게 제출해도 괜찮을지 문의드립니다");
+    } else {
+      setRecipient("같이 과제하는 팀원");
+      setPurpose("회의 시간을 목요일로 변경 요청");
+      setMessage("내일 다른 일정이 생겨서 그런데 혹시 회의를 목요일로 옮길 수 있을까?");
+    }
+    resetResult();
   };
 
   const runCheck = () => {
     if (!message.trim()) return;
-    setAnalyzed(true);
+    const drafts = makeDrafts(recipient, purpose, message, format, language);
     setSelectedOption(0);
-    setEditedDraft(options[0].text);
+    setEditedDraft(drafts[0].text);
+    setAnalyzed(true);
     setCopied(false);
-    setHeld(false);
-    track("submit_message", { situation: mode, mood });
+    track("submit_message", { format, language });
     window.setTimeout(() => document.getElementById("result")?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
   };
 
@@ -238,128 +346,123 @@ export default function Home() {
   const copyDraft = async () => {
     await navigator.clipboard.writeText(editedDraft);
     setCopied(true);
-    track("copy_message", { situation: mode, tone: options[selectedOption].label });
-  };
-
-  const chooseHold = () => {
-    setHeld(true);
-    track("choose_hold", { situation: mode });
+    track("copy_message", { format, language, tone: options[selectedOption].label });
   };
 
   return (
     <main>
       <header className="site-header">
-        <a href="#main" className="brand" aria-label="보내도 돼 처음으로">
-          보내도 돼?
-        </a>
-        <p>메시지를 보내기 전, 잠깐 생각할 시간을 만드는 도구</p>
-        <span>beta 0.2</span>
+        <a href="#main" className="brand" aria-label="보내도 돼 처음으로">보내도 돼?</a>
+        <p>누구에게든, 보내기 전 한 번 더</p>
+        <span>beta 0.3</span>
       </header>
 
       <div className="notice-bar">
         <span>입력한 문장은 저장하지 않아요.</span>
-        <span>로그인 없이 바로 사용할 수 있어요.</span>
+        <span>한국어와 영어, 메신저와 이메일을 지원해요.</span>
       </div>
 
       <section className="intro" id="main">
-        <div className="intro-index">01</div>
+        <span className="section-number">01</span>
         <div>
-          <p className="overline">보내기 전 확인</p>
-          <h1>지금 보내려는 말을<br />한 번 같이 볼게요.</h1>
-          <p className="intro-copy">맞춤법보다 중요한 건, 이 말을 왜 지금 보내려는지예요.</p>
+          <p className="overline">MESSAGE CHECK</p>
+          <h1>누구에게, 왜 보내는지부터<br />직접 정해주세요.</h1>
+          <p>관계와 목적을 알면 같은 내용도 훨씬 자연스럽게 다듬을 수 있어요.</p>
         </div>
       </section>
 
-      <section className="workbench" aria-label="메시지 검토 입력">
-        <aside className="scenario-panel">
-          <div className="panel-label">어떤 상황인가요?</div>
-          <nav aria-label="상황 선택">
-            {modes.map((item, index) => (
-              <button
-                type="button"
-                key={item.key}
-                className={mode === item.key ? "active" : ""}
-                aria-pressed={mode === item.key}
-                onClick={() => selectMode(item.key)}
-              >
-                <span>{String(index + 1).padStart(2, "0")}</span>
-                <div>
-                  <strong>{item.label}</strong>
-                  <small>{item.description}</small>
-                </div>
-              </button>
-            ))}
-          </nav>
-        </aside>
-
-        <div className="composer-panel">
-          <div className="composer-title">
+      <section className="compose-flow" aria-label="메시지 작성 정보">
+        <div className="flow-section context-section">
+          <div className="flow-heading">
+            <span>01</span>
             <div>
-              <span>선택한 상황</span>
-              <strong>{activeMode.label}</strong>
+              <p>CONTEXT</p>
+              <h2>누구에게, 왜 보내나요?</h2>
+              <small>정해진 대상은 없어요. 실제 관계와 원하는 결과를 적어주세요.</small>
             </div>
-            <button
-              type="button"
-              onClick={() => {
-                setMessage(activeMode.example);
-                resetResult();
-              }}
-            >
-              예시 문장으로 보기
-            </button>
           </div>
 
-          <label className="message-field" htmlFor="message">
-            <span>보내려는 문장</span>
-            <textarea
-              id="message"
-              maxLength={500}
-              value={message}
-              placeholder={activeMode.placeholder}
-              onChange={(event) => {
-                setMessage(event.target.value);
-                resetResult();
-              }}
-            />
-            <small>{message.length} / 500</small>
-          </label>
-
-          <div className="context-fields">
-            <label className="purpose-field" htmlFor="purpose">
-              <span>이 말을 보내는 이유 <em>선택</em></span>
+          <div className="context-inputs">
+            <label htmlFor="recipient">
+              <span>받는 사람과 나의 관계</span>
+              <input
+                id="recipient"
+                value={recipient}
+                placeholder="예: 동아리 회장, 해외 고객, 친한 친구"
+                onChange={(event) => {
+                  setRecipient(event.target.value);
+                  resetResult();
+                }}
+              />
+            </label>
+            <label htmlFor="purpose">
+              <span>이번 메시지의 목적</span>
               <input
                 id="purpose"
                 value={purpose}
-                placeholder="예: 답을 받고 싶어서, 일정을 조율하려고"
-                onChange={(event) => setPurpose(event.target.value)}
+                placeholder="예: 일정 변경을 요청하고 싶어요"
+                onChange={(event) => {
+                  setPurpose(event.target.value);
+                  resetResult();
+                }}
               />
             </label>
+          </div>
 
-            <fieldset className="mood-field">
-              <legend>지금 내 상태</legend>
+          <div className="format-row">
+            <fieldset>
+              <legend>보낼 형식</legend>
               <div>
-                {(Object.keys(moodLabels) as MoodKey[]).map((key) => (
-                  <button
-                    type="button"
-                    key={key}
-                    className={mood === key ? "active" : ""}
-                    aria-pressed={mood === key}
-                    onClick={() => {
-                      setMood(key);
-                      resetResult();
-                    }}
-                  >
-                    {moodLabels[key]}
+                {(Object.keys(formatLabels) as MessageFormat[]).map((key) => (
+                  <button key={key} type="button" aria-pressed={format === key} className={format === key ? "active" : ""} onClick={() => changeFormat(key)}>
+                    {formatLabels[key]}
+                  </button>
+                ))}
+              </div>
+            </fieldset>
+            <fieldset>
+              <legend>결과 언어</legend>
+              <div>
+                {(Object.keys(languageLabels) as OutputLanguage[]).map((key) => (
+                  <button key={key} type="button" aria-pressed={language === key} className={language === key ? "active" : ""} onClick={() => changeLanguage(key)}>
+                    {languageLabels[key]}
                   </button>
                 ))}
               </div>
             </fieldset>
           </div>
+        </div>
+
+        <div className="flow-section draft-section">
+          <div className="flow-heading draft-heading">
+            <span>02</span>
+            <div>
+              <p>DRAFT</p>
+              <h2>보내려던 문장을 붙여 넣어주세요.</h2>
+              <small>{language === "en" ? "한국어로 적어도 영문 형식으로 다시 구성해요." : "지금 보내려던 말을 그대로 적어도 괜찮아요."}</small>
+            </div>
+            <button type="button" className="example-button" onClick={fillExample}>예시로 보기</button>
+          </div>
+
+          <label className="message-field" htmlFor="message">
+            <span className="sr-only">보내려던 문장</span>
+            <textarea
+              id="message"
+              maxLength={1000}
+              value={message}
+              placeholder={format === "email" ? "메일에 담고 싶은 내용을 편하게 적어주세요." : "지금 보내려던 말을 그대로 적어주세요."}
+              onChange={(event) => {
+                setMessage(event.target.value);
+                resetResult();
+              }}
+            />
+            <small>{message.length} / 1000</small>
+          </label>
 
           <div className="check-action">
-            <p>이 결과는 결정 대신 참고할 수 있는 기준을 드려요.</p>
-            <button type="button" onClick={runCheck} disabled={!message.trim()}>
-              문장 확인하기 <span aria-hidden="true">↗</span>
+            <p>분석 결과는 결정을 대신하지 않고, 확인할 기준을 드려요.</p>
+            <button type="button" disabled={!message.trim()} onClick={runCheck}>
+              메시지 점검하기 <span aria-hidden="true">→</span>
             </button>
           </div>
         </div>
@@ -367,64 +470,60 @@ export default function Home() {
 
       {analyzed && (
         <section className="result-section" id="result" aria-live="polite">
-          <div className="result-heading">
+          <div className="result-intro">
             <span className="section-number">02</span>
             <div>
-              <p className="overline">검토 결과</p>
+              <p className="overline">REVIEW</p>
               <h2>{analysis.label}</h2>
               <p>{analysis.summary}</p>
             </div>
-            <div className={`result-status ${analysis.key}`}>{analysis.key === "pause" ? "보류 권장" : analysis.key === "review" ? "수정 권장" : "전송 가능"}</div>
+          </div>
+
+          <div className="context-summary">
+            <div><span>받는 사람</span><strong>{recipient.trim() || "입력하지 않음"}</strong></div>
+            <div><span>목적</span><strong>{purpose.trim() || "입력하지 않음"}</strong></div>
+            <div><span>형식</span><strong>{formatLabels[format]}</strong></div>
+            <div><span>언어</span><strong>{languageLabels[language]}</strong></div>
           </div>
 
           <div className="review-grid">
             <div className="finding-panel">
-              <h3>먼저 확인할 부분</h3>
+              <h3>확인할 부분</h3>
               <ol>
                 {analysis.findings.map((finding, index) => (
                   <li key={`${finding.phrase}-${index}`}>
                     <span>{String(index + 1).padStart(2, "0")}</span>
-                    <div>
-                      <strong>{finding.phrase}</strong>
-                      <p>{finding.reason}</p>
-                    </div>
+                    <div><strong>{finding.phrase}</strong><p>{finding.reason}</p></div>
                   </li>
                 ))}
               </ol>
-              <div className="purpose-note">
-                <span>내가 원하는 결과</span>
-                <p>{purpose.trim() || "아직 적지 않았어요. 상대가 어떤 답을 주길 바라는지 먼저 정해보세요."}</p>
-              </div>
+              {language === "en" && (
+                <div className="language-note">
+                  <strong>영문 작성 기준</strong>
+                  <p>단어를 그대로 옮기기보다, 영어권 메일과 메시지에서 자연스러운 순서로 다시 구성했어요.</p>
+                </div>
+              )}
             </div>
 
             <div className="suggestion-panel">
               <div className="suggestion-heading">
-                <div>
-                  <h3>대안 문장</h3>
-                  <p>가까운 표현을 고른 뒤 내 말투로 직접 고쳐보세요.</p>
-                </div>
-                <span>수정 가능</span>
+                <div><h3>{format === "email" ? "완성된 메일" : "대안 문장"}</h3><p>가까운 표현을 고른 뒤 직접 고쳐서 사용하세요.</p></div>
+                <span>직접 수정 가능</span>
               </div>
 
-              <div className="option-list" role="tablist" aria-label="대안 문장 선택">
+              <div className="option-list" role="tablist" aria-label="문장 유형 선택">
                 {options.map((option, index) => (
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={selectedOption === index}
-                    key={option.label}
-                    onClick={() => chooseOption(index)}
-                  >
-                    <span>{option.label}</span>
-                    <small>{option.note}</small>
+                  <button type="button" role="tab" aria-selected={selectedOption === index} key={option.label} onClick={() => chooseOption(index)}>
+                    <strong>{option.label}</strong><small>{option.note}</small>
                   </button>
                 ))}
               </div>
 
-              <label className="draft-field" htmlFor="edited-draft">
-                <span>내가 보낼 문장</span>
+              <label className="result-draft" htmlFor="edited-draft">
+                <span>{format === "email" ? "메일 초안" : "보낼 문장"}</span>
                 <textarea
                   id="edited-draft"
+                  lang={language}
                   value={editedDraft}
                   onChange={(event) => {
                     setEditedDraft(event.target.value);
@@ -434,57 +533,35 @@ export default function Home() {
               </label>
 
               <div className="result-actions">
-                <button className="secondary-action" type="button" onClick={chooseHold}>
-                  오늘은 보내지 않기
-                </button>
-                <button className="primary-action" type="button" onClick={copyDraft}>
-                  {copied ? "복사했어요" : "문장 복사하기"}
-                </button>
+                <button type="button" className="copy-button" onClick={copyDraft}>{copied ? "복사했어요" : "전체 문장 복사"}</button>
               </div>
-
-              {held && (
-                <div className="hold-note">
-                  <strong>오늘은 여기서 멈췄어요.</strong>
-                  <p>원문은 저장되지 않았어요. 내일도 같은 마음이라면 그때 다시 확인해보세요.</p>
-                </div>
-              )}
             </div>
           </div>
 
           <button
-            className="reset-button"
             type="button"
+            className="reset-button"
             onClick={() => {
-              setMessage("");
+              setRecipient("");
               setPurpose("");
+              setMessage("");
               resetResult();
               window.setTimeout(() => document.getElementById("main")?.scrollIntoView({ behavior: "smooth" }), 20);
             }}
           >
-            다른 문장 확인하기
+            새 메시지 작성하기
           </button>
         </section>
       )}
 
       <section className="criteria-section">
         <span className="section-number">03</span>
-        <div>
-          <p className="overline">우리가 보는 기준</p>
-          <h2>좋은 문장보다<br />덜 후회할 선택.</h2>
-        </div>
+        <div><p className="overline">CHECKING POINTS</p><h2>문장보다 먼저<br />맥락을 확인해요.</h2></div>
         <dl>
-          <div>
-            <dt>01. 시점</dt>
-            <dd>왜 하필 지금 보내려는지</dd>
-          </div>
-          <div>
-            <dt>02. 목적</dt>
-            <dd>상대에게 어떤 답을 원하는지</dd>
-          </div>
-          <div>
-            <dt>03. 여지</dt>
-            <dd>상대가 선택할 공간이 남아 있는지</dd>
-          </div>
+          <div><dt>01. 관계</dt><dd>누가 받는 말인지</dd></div>
+          <div><dt>02. 목적</dt><dd>어떤 답이나 행동을 원하는지</dd></div>
+          <div><dt>03. 형식</dt><dd>메신저인지 공식 이메일인지</dd></div>
+          <div><dt>04. 언어</dt><dd>한국어와 영어 중 무엇이 자연스러운지</dd></div>
         </dl>
       </section>
 

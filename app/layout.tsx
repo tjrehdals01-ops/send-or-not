@@ -16,17 +16,17 @@ export async function generateMetadata(): Promise<Metadata> {
   const imageUrl = `${protocol}://${host}/og.png`;
 
   return {
-    title: "보내도 돼? — 보내기 전 한 번 더",
-    description: "맞춤법보다 중요한 건, 이 말을 왜 지금 보내려는지예요.",
+    title: "보내도 돼? — 누구에게든, 보내기 전 한 번 더",
+    description: "받는 사람과 목적을 직접 정하고, 한국어·영어 메시지와 이메일을 점검하세요.",
     openGraph: {
       title: "보내도 돼?",
-      description: "메시지를 보내기 전, 잠깐 생각할 시간을 만드는 도구",
+      description: "받는 사람과 목적에 맞춰 한국어·영어 메시지를 점검하는 도구",
       images: [{ url: imageUrl, width: 1678, height: 941 }],
     },
     twitter: {
       card: "summary_large_image",
       title: "보내도 돼?",
-      description: "메시지를 보내기 전, 잠깐 생각할 시간을 만드는 도구",
+      description: "받는 사람과 목적에 맞춰 한국어·영어 메시지를 점검하는 도구",
       images: [imageUrl],
     },
     icons: {

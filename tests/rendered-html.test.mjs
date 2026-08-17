@@ -14,32 +14,33 @@ async function render() {
   );
 }
 
-test("server-renders the send-or-hold experience", async () => {
+test("server-renders the context-first message checker", async () => {
   const response = await render();
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
 
   const html = await response.text();
   assert.match(html, /<html lang="ko">/);
-  assert.match(html, /<title>보내도 돼\? — 보내기 전 한 번 더<\/title>/);
-  assert.match(html, /지금 보내려는 말을/);
-  assert.match(html, /어떤 상황인가요\?/);
-  assert.match(html, /입력한 문장은 저장하지 않아요/);
+  assert.match(html, /누구에게, 왜 보내는지부터/);
+  assert.match(html, /받는 사람과 나의 관계/);
+  assert.match(html, /이번 메시지의 목적/);
+  assert.match(html, /결과 언어/);
   assert.doesNotMatch(html, /codex-preview|SkeletonPreview|react-loading-skeleton/);
 });
 
-test("keeps all four scenarios and privacy copy in source", async () => {
+test("supports custom context, two formats, and Korean or English output", async () => {
   const [page, layout, packageJson] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
     readFile(new URL("../package.json", import.meta.url), "utf8"),
   ]);
 
-  for (const label of ["전 연인에게 연락", "교수님·선배에게 질문", "부탁이나 약속 거절", "답하기 어려운 대화"]) {
-    assert.match(page, new RegExp(label));
-  }
+  assert.match(page, /type MessageFormat = "chat" \| "email"/);
+  assert.match(page, /type OutputLanguage = "ko" \| "en"/);
+  assert.match(page, /Professor Kim/);
+  assert.match(page, /Subject:/);
   assert.match(page, /입력한 문장은 저장하지 않아요/);
-  assert.match(page, /choose_hold/);
   assert.match(layout, /og\.png/);
+  assert.doesNotMatch(page, /전 연인에게 연락|교수님·선배에게 질문/);
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);
 });
