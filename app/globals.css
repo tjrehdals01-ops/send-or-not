@@ -250,6 +250,14 @@ input::placeholder, textarea::placeholder { color: #a09f98; }
 }
 .check-action button:hover { background: #17366f; }
 .check-action button:disabled { background: #c5c5bf; border-color: #c5c5bf; cursor: not-allowed; }
+.error-message {
+  background: #fff1ee;
+  border-left: 3px solid #c9462e;
+  color: #8a2f20;
+  font-size: 12px;
+  margin: 12px 0 0 50px;
+  padding: 11px 14px;
+}
 
 .result-section { border-top: 1px solid var(--ink); scroll-margin-top: 20px; }
 .result-intro {
@@ -475,7 +483,7 @@ footer span { text-align: right; }
   .flow-heading h2 { font-size: 24px; }
   .draft-heading { grid-template-columns: 26px 1fr; }
   .example-button { grid-column: 2; justify-self: start; margin-top: 3px; }
-  .context-inputs, .format-row, .message-field, .check-action { margin-left: 38px; }
+  .context-inputs, .format-row, .message-field, .check-action, .error-message { margin-left: 38px; }
   .context-inputs, .format-row { grid-template-columns: 1fr; }
   .format-row { gap: 20px; }
   .message-field textarea { min-height: 190px; }
@@ -505,7 +513,7 @@ footer span { text-align: right; }
 }
 
 @media (max-width: 440px) {
-  .context-inputs, .format-row, .message-field, .check-action { margin-left: 0; }
+  .context-inputs, .format-row, .message-field, .check-action, .error-message { margin-left: 0; }
   .flow-heading small { font-size: 10px; }
 }
 

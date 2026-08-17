@@ -29,9 +29,10 @@ test("server-renders the context-first message checker", async () => {
 });
 
 test("supports custom context, three channels, comparison, and two languages", async () => {
-  const [page, messageModule, layout, packageJson] = await Promise.all([
+  const [page, messageModule, apiRoute, layout, packageJson] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../lib/message.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/rewrite/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
     readFile(new URL("../package.json", import.meta.url), "utf8"),
   ]);
@@ -39,13 +40,19 @@ test("supports custom context, three channels, comparison, and two languages", a
   assert.match(messageModule, /type MessageChannel = "kakao" \| "instagram" \| "email"/);
   assert.match(messageModule, /type OutputLanguage = "ko" \| "en"/);
   assert.match(page, /Professor Kim/);
-  assert.match(messageModule, /Subject:/);
+  assert.match(apiRoute, /email includes a useful subject/);
   assert.match(page, /comparison-grid/);
   assert.match(page, /navigator\.share/);
+  assert.match(page, /fetch\("\/api\/rewrite"/);
   for (const label of ["원본", "기본형", "단호하게", "정중하게"]) {
-    assert.match(messageModule, new RegExp(`label: "${label}"`));
+    assert.match(apiRoute, new RegExp(`label: "${label}"`));
   }
-  assert.match(page, /입력한 문장은 저장하지 않아요/);
+  assert.match(page, /입력한 문장은 AI 결과 생성에만 사용해요/);
+  assert.match(apiRoute, /https:\/\/api\.openai\.com\/v1\/responses/);
+  assert.match(apiRoute, /process\.env\.OPENAI_API_KEY/);
+  assert.match(apiRoute, /store: false/);
+  assert.match(apiRoute, /type: "json_schema"/);
+  assert.doesNotMatch(messageModule, /makeDrafts|analyzeMessage/);
   assert.match(layout, /og\.png/);
   assert.doesNotMatch(page, /전 연인에게 연락|교수님·선배에게 질문/);
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);

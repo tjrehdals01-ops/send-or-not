@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import {
-  analyzeMessage,
   channelLabels,
-  englishSubject,
+  emailShareTitle,
+  isReviewResponse,
   languageLabels,
-  makeDrafts,
+  type DraftOption,
+  type MessageAnalysis,
   type MessageChannel,
   type OutputLanguage,
 } from "../lib/message";
@@ -24,23 +25,19 @@ export default function Home() {
   const [message, setMessage] = useState("");
   const [channel, setChannel] = useState<MessageChannel>("kakao");
   const [language, setLanguage] = useState<OutputLanguage>("ko");
+  const [options, setOptions] = useState<DraftOption[]>([]);
+  const [analysis, setAnalysis] = useState<MessageAnalysis | null>(null);
   const [analyzed, setAnalyzed] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const [selectedOption, setSelectedOption] = useState(1);
   const [editedDraft, setEditedDraft] = useState("");
   const [copied, setCopied] = useState(false);
   const [shared, setShared] = useState(false);
 
-  const options = useMemo(
-    () => makeDrafts(recipient, purpose, message, channel, language),
-    [recipient, purpose, message, channel, language],
-  );
-  const analysis = useMemo(
-    () => analyzeMessage(recipient, purpose, message, channel, language),
-    [recipient, purpose, message, channel, language],
-  );
-
   const resetResult = () => {
     setAnalyzed(false);
+    setErrorMessage("");
     setCopied(false);
     setShared(false);
   };
@@ -86,16 +83,40 @@ export default function Home() {
     resetResult();
   };
 
-  const runCheck = () => {
+  const runCheck = async () => {
     if (!message.trim()) return;
-    const drafts = makeDrafts(recipient, purpose, message, channel, language);
-    setSelectedOption(1);
-    setEditedDraft(drafts[1].text);
-    setAnalyzed(true);
-    setCopied(false);
-    setShared(false);
-    track("submit_message", { channel, language });
-    window.setTimeout(() => document.getElementById("result")?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+    setIsLoading(true);
+    setErrorMessage("");
+    setAnalyzed(false);
+
+    try {
+      const response = await fetch("/api/rewrite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recipient, purpose, message, channel, language }),
+      });
+      const result: unknown = await response.json();
+
+      if (!response.ok) {
+        const error = result as { error?: string };
+        throw new Error(error.error || "AI 문장을 생성하지 못했어요.");
+      }
+      if (!isReviewResponse(result)) throw new Error("AI 결과 형식이 올바르지 않아요. 다시 시도해주세요.");
+
+      setOptions(result.options);
+      setAnalysis(result.analysis);
+      setSelectedOption(1);
+      setEditedDraft(result.options[1].text);
+      setAnalyzed(true);
+      setCopied(false);
+      setShared(false);
+      track("submit_message", { channel, language, generator: result.generatedBy });
+      window.setTimeout(() => document.getElementById("result")?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "AI 문장을 생성하지 못했어요.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const chooseOption = (index: number) => {
@@ -116,7 +137,7 @@ export default function Home() {
     if (navigator.share) {
       try {
         await navigator.share({
-          title: channel === "email" ? (language === "en" ? englishSubject(purpose) : purpose.trim() || "메일 초안") : undefined,
+          title: channel === "email" ? emailShareTitle(purpose, language) : undefined,
           text: editedDraft,
         });
         setShared(true);
@@ -139,8 +160,8 @@ export default function Home() {
       </header>
 
       <div className="notice-bar">
-        <span>입력한 문장은 저장하지 않아요.</span>
-        <span>카카오톡·Instagram DM·이메일에 맞춰 정리해요.</span>
+        <span>입력한 문장은 AI 결과 생성에만 사용해요.</span>
+        <span>카카오톡·Instagram DM·이메일의 맥락을 함께 분석해요.</span>
       </div>
 
       <section className="intro" id="main">
@@ -240,16 +261,17 @@ export default function Home() {
             <small>{message.length} / 1000</small>
           </label>
 
-          <div className="check-action">
+          <div className="check-action" aria-busy={isLoading}>
             <p>분석 결과는 결정을 대신하지 않고, 확인할 기준을 드려요.</p>
-            <button type="button" disabled={!message.trim()} onClick={runCheck}>
-              메시지 점검하기 <span aria-hidden="true">→</span>
+            <button type="button" disabled={!message.trim() || isLoading} onClick={runCheck}>
+              {isLoading ? "AI가 점검하는 중..." : "AI로 메시지 점검하기"} {!isLoading && <span aria-hidden="true">→</span>}
             </button>
           </div>
+          {errorMessage && <p className="error-message" role="alert">{errorMessage}</p>}
         </div>
       </section>
 
-      {analyzed && (
+      {analyzed && analysis && (
         <section className="result-section" id="result" aria-live="polite">
           <div className="result-intro">
             <span className="section-number">02</span>
@@ -289,7 +311,7 @@ export default function Home() {
             <div className="suggestion-panel">
               <div className="suggestion-heading">
                 <div><h3>{channel === "email" ? "완성된 메일" : "대안 문장"}</h3><p>원문과 나란히 비교한 뒤 직접 고쳐서 사용하세요.</p></div>
-                <span>직접 수정 가능</span>
+                <span>AI 생성 · 직접 수정 가능</span>
               </div>
 
               <div className="option-list" role="tablist" aria-label="문장 유형 선택">
@@ -358,7 +380,7 @@ export default function Home() {
       <footer>
         <strong>보내도 돼?</strong>
         <p>성균관대학교 신인류 AI 사피엔스 · 기말 프로젝트</p>
-        <span>입력 내용은 저장하지 않습니다.</span>
+        <span>입력 내용은 사이트 데이터베이스에 저장하지 않습니다.</span>
       </footer>
     </main>
   );
