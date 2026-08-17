@@ -21,10 +21,10 @@ test("server-renders the send-or-hold experience", async () => {
 
   const html = await response.text();
   assert.match(html, /<html lang="ko">/);
-  assert.match(html, /<title>보내도 돼\? — 전송 전 30초<\/title>/);
-  assert.match(html, /그 말,/);
-  assert.match(html, /누구에게 보내는 말인가요\?/);
-  assert.match(html, /원문 미저장/);
+  assert.match(html, /<title>보내도 돼\? — 보내기 전 한 번 더<\/title>/);
+  assert.match(html, /지금 보내려는 말을/);
+  assert.match(html, /어떤 상황인가요\?/);
+  assert.match(html, /입력한 문장은 저장하지 않아요/);
   assert.doesNotMatch(html, /codex-preview|SkeletonPreview|react-loading-skeleton/);
 });
 
@@ -35,11 +35,11 @@ test("keeps all four scenarios and privacy copy in source", async () => {
     readFile(new URL("../package.json", import.meta.url), "utf8"),
   ]);
 
-  for (const label of ["전 연인", "교수님 · 선배", "거절", "어려운 대답"]) {
-    assert.match(page, new RegExp(label.replace("·", "\\·")));
+  for (const label of ["전 연인에게 연락", "교수님·선배에게 질문", "부탁이나 약속 거절", "답하기 어려운 대화"]) {
+    assert.match(page, new RegExp(label));
   }
-  assert.match(page, /입력한 원문은 저장하지 않습니다/);
+  assert.match(page, /입력한 문장은 저장하지 않아요/);
   assert.match(page, /choose_hold/);
-  assert.match(layout, /og-card\.png/);
+  assert.match(layout, /og\.png/);
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);
 });
