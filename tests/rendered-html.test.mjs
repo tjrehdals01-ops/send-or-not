@@ -29,20 +29,21 @@ test("server-renders the context-first message checker", async () => {
 });
 
 test("supports custom context, three channels, comparison, and two languages", async () => {
-  const [page, layout, packageJson] = await Promise.all([
+  const [page, messageModule, layout, packageJson] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../lib/message.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
     readFile(new URL("../package.json", import.meta.url), "utf8"),
   ]);
 
-  assert.match(page, /type MessageChannel = "kakao" \| "instagram" \| "email"/);
-  assert.match(page, /type OutputLanguage = "ko" \| "en"/);
+  assert.match(messageModule, /type MessageChannel = "kakao" \| "instagram" \| "email"/);
+  assert.match(messageModule, /type OutputLanguage = "ko" \| "en"/);
   assert.match(page, /Professor Kim/);
-  assert.match(page, /Subject:/);
+  assert.match(messageModule, /Subject:/);
   assert.match(page, /comparison-grid/);
   assert.match(page, /navigator\.share/);
   for (const label of ["원본", "기본형", "단호하게", "정중하게"]) {
-    assert.match(page, new RegExp(`label: "${label}"`));
+    assert.match(messageModule, new RegExp(`label: "${label}"`));
   }
   assert.match(page, /입력한 문장은 저장하지 않아요/);
   assert.match(layout, /og\.png/);
