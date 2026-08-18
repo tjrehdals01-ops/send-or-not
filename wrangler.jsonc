@@ -1,0 +1,16 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // 이 파일은 `wrangler d1 ...` CLI 명령어(migrations apply, execute 등)를 위한 설정이에요.
+  // 실제 `npm run dev`/`npm run build`는 vite.config.ts의 인라인 config를 그대로 씁니다 —
+  // 두 설정의 바인딩 값(binding/database_name/database_id)은 항상 같게 맞춰주세요.
+  "name": "send-or-not",
+  "compatibility_date": "2024-09-26",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "site-creator-d1",
+      "database_id": "00000000-0000-4000-8000-000000000000",
+      "migrations_dir": "./drizzle"
+    }
+  ]
+}

@@ -13,7 +13,11 @@ const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === "seatbelt";
 
 const localBindingConfig = {
   main: "./worker/index.ts",
-  compatibility_flags: ["nodejs_compat"],
+  // nodejs_compat만으로는 compatibility_date가 2025-04-01 이전일 때
+  // process.env가 자동으로 채워지지 않음 — .dev.vars의 값을 실제로
+  // process.env에 넣으려면 아래 플래그가 추가로 필요함.
+  // (2025-04-01 이후 compatibility_date라면 이 플래그 없이도 동작함)
+  compatibility_flags: ["nodejs_compat", "nodejs_compat_populate_process_env"],
   d1_databases: d1
     ? [
         {

@@ -19,6 +19,17 @@ function track(event: string, detail?: Record<string, string>) {
   target.dataLayer.push({ event, ...detail });
 }
 
+// 사용 데이터 로그 — 이용 시간/관계/채널/톤만 서버로 보냄. 원문은 절대 보내지 않음.
+// 실패해도 사용자 흐름을 막지 않도록 조용히 무시함.
+function logUsage(relationship: string, channel: MessageChannel, tone: string) {
+  if (typeof window === "undefined") return;
+  fetch("/api/log", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ relationship, channel, tone }),
+  }).catch(() => {});
+}
+
 export default function Home() {
   const [recipient, setRecipient] = useState("");
   const [purpose, setPurpose] = useState("");
@@ -130,7 +141,9 @@ export default function Home() {
   const copyDraft = async () => {
     await navigator.clipboard.writeText(editedDraft);
     setCopied(true);
-    track("copy_message", { channel, language, tone: options[selectedOption].label });
+    const tone = options[selectedOption].label;
+    track("copy_message", { channel, language, tone });
+    logUsage(recipient.trim() || "입력하지 않음", channel, tone);
   };
 
   const shareDraft = async () => {
