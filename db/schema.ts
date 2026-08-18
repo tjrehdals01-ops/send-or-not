@@ -11,11 +11,13 @@ export const usageEvents = sqliteTable(
     tone: text("tone"),
     recipientCategory: text("recipient_category"),
     messageLengthBucket: text("message_length_bucket"),
+    trafficType: text("traffic_type"),
     createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   },
   (table) => [
     index("idx_usage_events_event_created_at").on(table.event, table.createdAt),
     index("idx_usage_events_channel_created_at").on(table.channel, table.createdAt),
     index("idx_usage_events_recipient_created_at").on(table.recipientCategory, table.createdAt),
+    index("idx_usage_events_traffic_created_at").on(table.trafficType, table.createdAt),
   ],
 );

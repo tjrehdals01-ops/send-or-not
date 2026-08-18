@@ -25,14 +25,17 @@ const allowedRecipientCategories = new Set([
   "other",
 ]);
 const allowedMessageLengthBuckets = new Set(["1_50", "51_150", "151_300", "301_1000"]);
+const allowedTrafficTypes = new Set(["user", "synthetic"]);
 
 type EventPayload = {
   event?: unknown;
   channel?: unknown;
   language?: unknown;
+  output_language?: unknown;
   tone?: unknown;
   recipient_category?: unknown;
   message_length_bucket?: unknown;
+  traffic_type?: unknown;
 };
 
 function optionalAllowed(value: unknown, allowed: Set<string>) {
@@ -48,16 +51,18 @@ export async function POST(request: Request) {
     }
 
     const channel = optionalAllowed(payload.channel, allowedChannels);
-    const language = optionalAllowed(payload.language, allowedLanguages);
+    const language = optionalAllowed(payload.output_language ?? payload.language, allowedLanguages);
     const tone = optionalAllowed(payload.tone, allowedTones);
     const recipientCategory = optionalAllowed(payload.recipient_category, allowedRecipientCategories);
     const messageLengthBucket = optionalAllowed(payload.message_length_bucket, allowedMessageLengthBuckets);
+    const trafficType = optionalAllowed(payload.traffic_type, allowedTrafficTypes);
     if (
       channel === undefined ||
       language === undefined ||
       tone === undefined ||
       recipientCategory === undefined ||
-      messageLengthBucket === undefined
+      messageLengthBucket === undefined ||
+      trafficType === undefined
     ) {
       return Response.json({ error: "이벤트 속성이 올바르지 않습니다." }, { status: 400 });
     }
@@ -70,6 +75,7 @@ export async function POST(request: Request) {
       tone,
       recipientCategory,
       messageLengthBucket,
+      trafficType,
     });
 
     return new Response(null, { status: 204 });
@@ -81,7 +87,16 @@ export async function POST(request: Request) {
 export async function GET() {
   try {
     const db = getDb();
-    const [summary, recent, channels, recipientCategories] = await Promise.all([
+    const [
+      summary,
+      recent,
+      channels,
+      recipientCategories,
+      languages,
+      tones,
+      messageLengthBuckets,
+      trafficTypes,
+    ] = await Promise.all([
       db
         .select({ event: usageEvents.event, count: count() })
         .from(usageEvents)
@@ -99,19 +114,54 @@ export async function GET() {
       db
         .select({ channel: usageEvents.channel, count: count() })
         .from(usageEvents)
-        .where(sql`${usageEvents.channel} IS NOT NULL`)
+        .where(sql`${usageEvents.event} = 'message_review_completed' AND ${usageEvents.channel} IS NOT NULL`)
         .groupBy(usageEvents.channel)
         .orderBy(desc(count())),
       db
         .select({ recipientCategory: usageEvents.recipientCategory, count: count() })
         .from(usageEvents)
-        .where(sql`${usageEvents.recipientCategory} IS NOT NULL`)
+        .where(sql`${usageEvents.event} = 'message_review_completed' AND ${usageEvents.recipientCategory} IS NOT NULL`)
         .groupBy(usageEvents.recipientCategory)
+        .orderBy(desc(count())),
+      db
+        .select({ language: usageEvents.language, count: count() })
+        .from(usageEvents)
+        .where(sql`${usageEvents.event} = 'message_review_completed' AND ${usageEvents.language} IS NOT NULL`)
+        .groupBy(usageEvents.language)
+        .orderBy(desc(count())),
+      db
+        .select({ tone: usageEvents.tone, count: count() })
+        .from(usageEvents)
+        .where(sql`${usageEvents.event} = 'select_tone' AND ${usageEvents.tone} IS NOT NULL`)
+        .groupBy(usageEvents.tone)
+        .orderBy(desc(count())),
+      db
+        .select({ messageLengthBucket: usageEvents.messageLengthBucket, count: count() })
+        .from(usageEvents)
+        .where(sql`${usageEvents.event} = 'message_review_completed' AND ${usageEvents.messageLengthBucket} IS NOT NULL`)
+        .groupBy(usageEvents.messageLengthBucket)
+        .orderBy(desc(count())),
+      db
+        .select({ trafficType: usageEvents.trafficType, count: count() })
+        .from(usageEvents)
+        .where(sql`${usageEvents.event} = 'message_review_completed' AND ${usageEvents.trafficType} IS NOT NULL`)
+        .groupBy(usageEvents.trafficType)
         .orderBy(desc(count())),
     ]);
 
     return Response.json(
-      { summary, recent, channels, recipientCategories },
+      {
+        summary,
+        recent,
+        completed: {
+          channels,
+          recipientCategories,
+          languages,
+          messageLengthBuckets,
+          trafficTypes,
+        },
+        toneSelections: tones,
+      },
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch {

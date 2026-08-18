@@ -65,9 +65,13 @@ test("supports custom context, three channels, comparison, and two languages", a
   assert.match(messageModule, /type RecipientCategory/);
   assert.match(page, /recipientCategoryLabels/);
   assert.match(page, /message_length_bucket/);
+  assert.match(page, /output_language/);
+  assert.match(page, /traffic_type/);
   assert.match(eventRoute, /usageEvents/);
   assert.match(eventRoute, /allowedEvents/);
   assert.match(eventRoute, /allowedRecipientCategories/);
+  assert.match(eventRoute, /allowedTrafficTypes/);
+  assert.match(dbSchema, /traffic_type/);
   assert.match(dbSchema, /sqliteTable\(\s*"usage_events"/);
   assert.match(hosting, /"d1": "DB"/);
   assert.doesNotMatch(dbSchema, /text\("(recipient|purpose|message|original_message)"\)/);

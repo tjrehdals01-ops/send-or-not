@@ -20,11 +20,21 @@ type AnalyticsWindow = Window & {
 
 function track(event: string, detail?: Record<string, string>) {
   if (typeof window === "undefined") return;
-  (window as AnalyticsWindow).gtag?.("event", event, detail);
+  const trafficType = new URLSearchParams(window.location.search).get("test") === "synthetic"
+    ? "synthetic"
+    : "user";
+  const { language, ...rest } = detail ?? {};
+  const analyticsDetail = {
+    ...rest,
+    ...(language ? { output_language: language } : {}),
+    traffic_type: trafficType,
+  };
+
+  (window as AnalyticsWindow).gtag?.("event", event, analyticsDetail);
   void fetch("/api/events", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ event, ...detail }),
+    body: JSON.stringify({ event, ...analyticsDetail }),
     keepalive: true,
   }).catch(() => undefined);
 }
