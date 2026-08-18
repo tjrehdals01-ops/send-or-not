@@ -12,11 +12,13 @@ import {
   type OutputLanguage,
 } from "../lib/message";
 
+type AnalyticsWindow = Window & {
+  gtag?: (command: "event", eventName: string, parameters?: Record<string, string>) => void;
+};
+
 function track(event: string, detail?: Record<string, string>) {
   if (typeof window === "undefined") return;
-  const target = window as Window & { dataLayer?: unknown[] };
-  target.dataLayer = target.dataLayer || [];
-  target.dataLayer.push({ event, ...detail });
+  (window as AnalyticsWindow).gtag?.("event", event, detail);
 }
 
 export default function Home() {
@@ -110,10 +112,11 @@ export default function Home() {
       setAnalyzed(true);
       setCopied(false);
       setShared(false);
-      track("submit_message", { channel, language, generator: result.generatedBy });
+      track("message_review_completed", { channel, language, generator: result.generatedBy });
       window.setTimeout(() => document.getElementById("result")?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "AI 문장을 생성하지 못했어요.");
+      track("message_review_error", { channel, language });
     } finally {
       setIsLoading(false);
     }
@@ -141,7 +144,7 @@ export default function Home() {
           text: editedDraft,
         });
         setShared(true);
-        track("share_message", { channel, language });
+        track("share", { method: "web_share", content_type: channel, language });
         return;
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError") return;
@@ -380,7 +383,7 @@ export default function Home() {
       <footer>
         <strong>보내도 돼?</strong>
         <p>성균관대학교 신인류 AI 사피엔스 · 기말 프로젝트</p>
-        <span>입력 내용은 사이트 데이터베이스에 저장하지 않습니다.</span>
+        <span>메시지 내용은 사이트 DB나 Analytics에 저장하지 않고, 방문·기능 사용 통계만 수집합니다.</span>
       </footer>
     </main>
   );

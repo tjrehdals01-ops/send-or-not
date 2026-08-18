@@ -9,6 +9,11 @@ const notoSansKr = Noto_Sans_KR({
   weight: ["400", "500", "600", "700", "800", "900"],
 });
 
+function getGoogleAnalyticsId() {
+  const value = process.env.GA_MEASUREMENT_ID?.trim().toUpperCase();
+  return value && /^G-[A-Z0-9]+$/.test(value) ? value : null;
+}
+
 export async function generateMetadata(): Promise<Metadata> {
   const requestHeaders = await headers();
   const host = requestHeaders.get("x-forwarded-host") || requestHeaders.get("host") || "bonaedo-dwae.skku-boot5.chatgpt.site";
@@ -37,8 +42,22 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  const googleAnalyticsId = getGoogleAnalyticsId();
+
   return (
     <html lang="ko">
+      <head>
+        {googleAnalyticsId && (
+          <>
+            <script async src={`https://www.googletagmanager.com/gtag/js?id=${googleAnalyticsId}`} />
+            <script
+              dangerouslySetInnerHTML={{
+                __html: `window.dataLayer=window.dataLayer||[];window.gtag=function(){window.dataLayer.push(arguments);};window.gtag('js',new Date());window.gtag('config','${googleAnalyticsId}',{send_page_view:true});`,
+              }}
+            />
+          </>
+        )}
+      </head>
       <body className={notoSansKr.variable}>{children}</body>
     </html>
   );

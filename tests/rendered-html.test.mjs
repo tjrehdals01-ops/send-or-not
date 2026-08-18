@@ -54,6 +54,11 @@ test("supports custom context, three channels, comparison, and two languages", a
   assert.match(apiRoute, /type: "json_schema"/);
   assert.doesNotMatch(messageModule, /makeDrafts|analyzeMessage/);
   assert.match(layout, /og\.png/);
+  assert.match(layout, /GA_MEASUREMENT_ID/);
+  assert.match(layout, /googletagmanager\.com\/gtag\/js/);
+  assert.match(page, /message_review_completed/);
+  assert.match(page, /message_review_error/);
+  assert.doesNotMatch(page, /track\([^\n]+\{[^\n]*(recipient|purpose|message)/);
   assert.doesNotMatch(page, /전 연인에게 연락|교수님·선배에게 질문/);
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);
 });
