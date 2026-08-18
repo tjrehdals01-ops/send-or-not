@@ -16,6 +16,8 @@ type AnalyticsWindow = Window & {
   gtag?: (command: "event", eventName: string, parameters?: Record<string, string>) => void;
 };
 
+const relationshipTypeOptions = ["친구", "팀원·동료", "교수·상사", "가족·연인", "고객·거래처", "처음 연락하는 사람", "기타"];
+
 function track(event: string, detail?: Record<string, string>) {
   if (typeof window === "undefined") return;
   (window as AnalyticsWindow).gtag?.("event", event, detail);
@@ -29,6 +31,7 @@ function track(event: string, detail?: Record<string, string>) {
 
 export default function Home() {
   const [recipient, setRecipient] = useState("");
+  const [relationshipType, setRelationshipType] = useState("");
   const [purpose, setPurpose] = useState("");
   const [message, setMessage] = useState("");
   const [channel, setChannel] = useState<MessageChannel>("kakao");
@@ -48,6 +51,11 @@ export default function Home() {
     setErrorMessage("");
     setCopied(false);
     setShared(false);
+  };
+
+  const changeRelationshipType = (next: string) => {
+    setRelationshipType(next);
+    track("select_relationship_type", { relationshipType: next });
   };
 
   const changeChannel = (next: MessageChannel) => {
@@ -194,6 +202,19 @@ export default function Home() {
           </div>
 
           <div className="context-inputs">
+            <label htmlFor="relationship-type">
+              <span>관계 유형 · 통계용</span>
+              <select
+                id="relationship-type"
+                value={relationshipType}
+                onChange={(event) => changeRelationshipType(event.target.value)}
+              >
+                <option value="" disabled hidden>선택해주세요</option>
+                {relationshipTypeOptions.map((option) => (
+                  <option key={option} value={option}>{option}</option>
+                ))}
+              </select>
+            </label>
             <label htmlFor="recipient">
               <span>받는 사람과 나의 관계</span>
               <input
@@ -364,6 +385,7 @@ export default function Home() {
             className="reset-button"
             onClick={() => {
               setRecipient("");
+              setRelationshipType("");
               setPurpose("");
               setMessage("");
               resetResult();
