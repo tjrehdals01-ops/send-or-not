@@ -19,6 +19,12 @@ type AnalyticsWindow = Window & {
 function track(event: string, detail?: Record<string, string>) {
   if (typeof window === "undefined") return;
   (window as AnalyticsWindow).gtag?.("event", event, detail);
+  void fetch("/api/events", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ event, ...detail }),
+    keepalive: true,
+  }).catch(() => undefined);
 }
 
 export default function Home() {
@@ -144,7 +150,7 @@ export default function Home() {
           text: editedDraft,
         });
         setShared(true);
-        track("share", { method: "web_share", content_type: channel, language });
+        track("share", { method: "web_share", content_type: channel, channel, language });
         return;
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError") return;
@@ -383,7 +389,7 @@ export default function Home() {
       <footer>
         <strong>보내도 돼?</strong>
         <p>성균관대학교 신인류 AI 사피엔스 · 기말 프로젝트</p>
-        <span>메시지 내용은 사이트 DB나 Analytics에 저장하지 않고, 방문·기능 사용 통계만 수집합니다.</span>
+        <span>메시지 내용은 저장하지 않고, 익명 기능 사용 통계만 DB와 Analytics에 기록합니다.</span>
       </footer>
     </main>
   );

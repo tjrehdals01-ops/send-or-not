@@ -29,10 +29,13 @@ test("server-renders the context-first message checker", async () => {
 });
 
 test("supports custom context, three channels, comparison, and two languages", async () => {
-  const [page, messageModule, apiRoute, layout, packageJson] = await Promise.all([
+  const [page, messageModule, apiRoute, eventRoute, dbSchema, hosting, layout, packageJson] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../lib/message.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/rewrite/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/events/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
+    readFile(new URL("../.openai/hosting.json", import.meta.url), "utf8"),
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
     readFile(new URL("../package.json", import.meta.url), "utf8"),
   ]);
@@ -58,6 +61,12 @@ test("supports custom context, three channels, comparison, and two languages", a
   assert.match(layout, /googletagmanager\.com\/gtag\/js/);
   assert.match(page, /message_review_completed/);
   assert.match(page, /message_review_error/);
+  assert.match(page, /fetch\("\/api\/events"/);
+  assert.match(eventRoute, /usageEvents/);
+  assert.match(eventRoute, /allowedEvents/);
+  assert.match(dbSchema, /sqliteTable\(\s*"usage_events"/);
+  assert.match(hosting, /"d1": "DB"/);
+  assert.doesNotMatch(dbSchema, /recipient|purpose|message/);
   assert.doesNotMatch(page, /track\([^\n]+\{[^\n]*(recipient|purpose|message)/);
   assert.doesNotMatch(page, /전 연인에게 연락|교수님·선배에게 질문/);
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);

@@ -21,7 +21,7 @@
 - **네 가지 결과 비교:** 원본, 기본형, 단호하게, 정중하게 중 원하는 표현을 선택합니다.
 - **원문 대조:** 사용자가 입력한 문장과 수정 결과를 나란히 확인할 수 있습니다.
 - **직접 편집과 공유:** 생성된 문장을 수정하고 복사하거나 모바일 공유 창으로 전달합니다.
-- **이용 통계:** GA4로 방문, AI 점검 성공·실패, 채널·언어, 복사·공유 이벤트를 확인합니다. 메시지 원문은 전송하지 않습니다.
+- **이용 통계:** D1 DB와 GA4로 AI 점검 성공·실패, 채널·언어, 말투 선택, 복사·공유 이벤트를 확인합니다. 메시지 원문은 저장하지 않습니다.
 
 ## 사용 흐름
 
@@ -47,11 +47,14 @@
 send-or-not/
 ├─ app/
 │  ├─ api/rewrite/route.ts # Groq Chat Completions API를 호출하는 서버 경로
+│  ├─ api/events/route.ts  # 익명 기능 사용 이벤트 저장·집계 경로
 │  ├─ page.tsx          # 입력, 비교, 편집, 공유 화면
 │  ├─ globals.css       # 반응형 UI와 디자인 시스템
 │  └─ layout.tsx        # 메타데이터와 소셜 미리보기
 ├─ lib/
 │  └─ message.ts        # 클라이언트와 서버가 공유하는 타입과 검증 로직
+├─ db/
+│  └─ schema.ts         # Cloudflare D1 사용 통계 테이블
 ├─ public/
 │  └─ og.png            # GitHub 및 링크 공유용 대표 이미지
 └─ tests/
@@ -61,7 +64,7 @@ send-or-not/
 ## 기술 스택
 
 - Next.js, React, TypeScript
-- Vinext, Vite, Cloudflare Workers
+- Vinext, Vite, Cloudflare Workers, Cloudflare D1
 - Groq Chat Completions API, Structured Outputs
 - Web Share API, Clipboard API
 - Node.js Test Runner, ESLint
@@ -92,7 +95,7 @@ npm run lint
 
 ## 구현 방식과 범위
 
-현재 버전은 브라우저가 `/api/rewrite` 서버 경로에 입력값을 전달하고, 서버가 Groq Chat Completions API를 호출하는 구조입니다. API 키는 서버 환경 변수로만 관리하며 브라우저에 전달하지 않습니다.
+현재 버전은 브라우저가 `/api/rewrite` 서버 경로에 입력값을 전달하고, 서버가 Groq Chat Completions API를 호출하는 구조입니다. API 키는 서버 환경 변수로만 관리하며 브라우저에 전달하지 않습니다. 기능 사용 이벤트는 `/api/events`를 통해 D1에 저장하며, 같은 경로의 `GET` 응답으로 이벤트별 누적 수와 최근 7일 사용량을 집계할 수 있습니다.
 
 AI는 다음 정보를 함께 해석합니다.
 
@@ -114,4 +117,4 @@ AI는 다음 정보를 함께 해석합니다.
 
 ## 개인정보 안내
 
-이 프로젝트는 입력한 메시지를 자체 데이터베이스나 Google Analytics에 저장하지 않습니다. 다만 결과 생성을 위해 메시지가 Groq API로 전송되며, GA4에는 페이지 방문과 기능 사용 이벤트 및 채널·언어 같은 비식별 정보만 전송됩니다. 실제 개인정보나 민감한 내용을 입력하지 말고, 사용 전에는 생성된 문장을 직접 확인해야 합니다.
+이 프로젝트는 입력한 메시지, 받는 사람, 목적을 자체 데이터베이스나 Google Analytics에 저장하지 않습니다. 다만 결과 생성을 위해 해당 내용이 Groq API로 전송됩니다. D1과 GA4에는 기능 이름, 채널, 언어, 선택한 말투, 기록 시각 같은 비식별 사용 통계만 기록합니다. 실제 개인정보나 민감한 내용을 입력하지 말고, 사용 전에는 생성된 문장을 직접 확인해야 합니다.
