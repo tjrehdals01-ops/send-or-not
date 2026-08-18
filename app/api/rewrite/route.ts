@@ -2,8 +2,10 @@ import { NextResponse } from "next/server";
 import {
   channelLabels,
   languageLabels,
+  recipientCategoryLabels,
   type MessageChannel,
   type OutputLanguage,
+  type RecipientCategory,
   type ReviewRequest,
 } from "../../../lib/message";
 
@@ -11,6 +13,15 @@ const GROQ_CHAT_COMPLETIONS_URL = "https://api.groq.com/openai/v1/chat/completio
 const DEFAULT_MODEL = "openai/gpt-oss-20b";
 const channels: MessageChannel[] = ["kakao", "instagram", "email"];
 const languages: OutputLanguage[] = ["ko", "en"];
+const recipientCategories: RecipientCategory[] = [
+  "friend",
+  "colleague",
+  "professor_manager",
+  "family_partner",
+  "customer",
+  "new_contact",
+  "other",
+];
 
 const responseSchema = {
   type: "object",
@@ -73,6 +84,7 @@ function readPayload(value: unknown): ReviewRequest | null {
   const body = value as Partial<ReviewRequest>;
   if (
     typeof body.recipient !== "string" ||
+    !recipientCategories.includes(body.recipientCategory as RecipientCategory) ||
     typeof body.purpose !== "string" ||
     typeof body.message !== "string" ||
     !channels.includes(body.channel as MessageChannel) ||
@@ -149,6 +161,7 @@ export async function POST(request: Request) {
             role: "user",
             content: JSON.stringify({
               recipient: payload.recipient.trim() || "입력하지 않음",
+              recipientCategory: recipientCategoryLabels[payload.recipientCategory],
               purpose: payload.purpose.trim() || "입력하지 않음",
               channel: channelLabels[payload.channel],
               outputLanguage: languageLabels[payload.language],

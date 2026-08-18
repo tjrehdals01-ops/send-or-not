@@ -6,10 +6,12 @@ import {
   emailShareTitle,
   isReviewResponse,
   languageLabels,
+  recipientCategoryLabels,
   type DraftOption,
   type MessageAnalysis,
   type MessageChannel,
   type OutputLanguage,
+  type RecipientCategory,
 } from "../lib/message";
 
 type AnalyticsWindow = Window & {
@@ -20,13 +22,30 @@ const relationshipTypeOptions = ["친구", "팀원·동료", "교수·상사", "
 
 function track(event: string, detail?: Record<string, string>) {
   if (typeof window === "undefined") return;
-  (window as AnalyticsWindow).gtag?.("event", event, detail);
+  const trafficType = new URLSearchParams(window.location.search).get("test") === "synthetic"
+    ? "synthetic"
+    : "user";
+  const { language, ...rest } = detail ?? {};
+  const analyticsDetail = {
+    ...rest,
+    ...(language ? { output_language: language } : {}),
+    traffic_type: trafficType,
+  };
+
+  (window as AnalyticsWindow).gtag?.("event", event, analyticsDetail);
   void fetch("/api/events", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ event, ...detail }),
+    body: JSON.stringify({ event, ...analyticsDetail }),
     keepalive: true,
   }).catch(() => undefined);
+}
+
+function getMessageLengthBucket(length: number) {
+  if (length <= 50) return "1_50";
+  if (length <= 150) return "51_150";
+  if (length <= 300) return "151_300";
+  return "301_1000";
 }
 
 export default function Home() {
@@ -61,38 +80,50 @@ export default function Home() {
   const changeChannel = (next: MessageChannel) => {
     setChannel(next);
     resetResult();
-    track("select_channel", { channel: next });
+    track("select_channel", { channel: next, recipient_category: recipientCategory });
   };
 
   const changeLanguage = (next: OutputLanguage) => {
     setLanguage(next);
     resetResult();
-    track("select_language", { language: next });
+    track("select_language", { language: next, channel, recipient_category: recipientCategory });
+  };
+
+  const changeRecipientCategory = (next: RecipientCategory) => {
+    setRecipientCategory(next);
+    resetResult();
+    track("select_recipient_category", { recipient_category: next, channel, language });
   };
 
   const fillExample = () => {
     if (language === "en" && channel === "email") {
       setRecipient("Professor Kim");
+      setRecipientCategory("professor_manager");
       setPurpose("Request a one-day assignment extension");
       setMessage("I want to ask if I can submit the assignment one day late because of a personal matter");
     } else if (language === "en" && channel === "instagram") {
       setRecipient("A creator I follow");
+      setRecipientCategory("new_contact");
       setPurpose("Ask about a collaboration");
       setMessage("I want to ask if you are interested in working together on a small campus project");
     } else if (language === "en") {
       setRecipient("Project teammate");
+      setRecipientCategory("colleague");
       setPurpose("Ask to move tomorrow's meeting");
       setMessage("Can you move our meeting to Thursday? I have another appointment tomorrow");
     } else if (channel === "email") {
       setRecipient("담당 교수님");
+      setRecipientCategory("professor_manager");
       setPurpose("과제 제출 기한 하루 연장 요청");
       setMessage("개인 사정으로 과제 준비가 늦어져 하루 늦게 제출해도 괜찮을지 문의드립니다");
     } else if (channel === "instagram") {
       setRecipient("처음 연락하는 동아리 계정 운영자");
+      setRecipientCategory("new_contact");
       setPurpose("행사 협업 가능 여부 문의");
       setMessage("안녕하세요 갑자기 DM드려서 죄송한데 이번 행사 때 같이 협업할 수 있을지 여쭤보고 싶어요");
     } else {
       setRecipient("같이 과제하는 팀원");
+      setRecipientCategory("colleague");
       setPurpose("회의 시간을 목요일로 변경 요청");
       setMessage("내일 다른 일정이 생겨서 그런데 혹시 회의를 목요일로 옮길 수 있을까?");
     }
@@ -109,7 +140,7 @@ export default function Home() {
       const response = await fetch("/api/rewrite", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ recipient, purpose, message, channel, language }),
+        body: JSON.stringify({ recipient, recipientCategory, purpose, message, channel, language }),
       });
       const result: unknown = await response.json();
 
@@ -126,11 +157,22 @@ export default function Home() {
       setAnalyzed(true);
       setCopied(false);
       setShared(false);
-      track("message_review_completed", { channel, language, generator: result.generatedBy });
+      track("message_review_completed", {
+        channel,
+        language,
+        recipient_category: recipientCategory,
+        message_length_bucket: getMessageLengthBucket(message.trim().length),
+        generator: result.generatedBy,
+      });
       window.setTimeout(() => document.getElementById("result")?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "AI 문장을 생성하지 못했어요.");
-      track("message_review_error", { channel, language });
+      track("message_review_error", {
+        channel,
+        language,
+        recipient_category: recipientCategory,
+        message_length_bucket: getMessageLengthBucket(message.trim().length),
+      });
     } finally {
       setIsLoading(false);
     }
@@ -141,13 +183,13 @@ export default function Home() {
     setEditedDraft(options[index].text);
     setCopied(false);
     setShared(false);
-    track("select_tone", { tone: options[index].label });
+    track("select_tone", { tone: options[index].label, channel, language, recipient_category: recipientCategory });
   };
 
   const copyDraft = async () => {
     await navigator.clipboard.writeText(editedDraft);
     setCopied(true);
-    track("copy_message", { channel, language, tone: options[selectedOption].label });
+    track("copy_message", { channel, language, tone: options[selectedOption].label, recipient_category: recipientCategory });
   };
 
   const shareDraft = async () => {
@@ -158,7 +200,7 @@ export default function Home() {
           text: editedDraft,
         });
         setShared(true);
-        track("share", { method: "web_share", content_type: channel, channel, language });
+        track("share", { method: "web_share", content_type: channel, channel, language, recipient_category: recipientCategory });
         return;
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError") return;
@@ -313,6 +355,7 @@ export default function Home() {
           </div>
 
           <div className="context-summary">
+            <div><span>관계 유형</span><strong>{recipientCategoryLabels[recipientCategory]}</strong></div>
             <div><span>받는 사람</span><strong>{recipient.trim() || "입력하지 않음"}</strong></div>
             <div><span>목적</span><strong>{purpose.trim() || "입력하지 않음"}</strong></div>
             <div><span>보낼 곳</span><strong>{channelLabels[channel]}</strong></div>
@@ -411,7 +454,7 @@ export default function Home() {
       <footer>
         <strong>보내도 돼?</strong>
         <p>성균관대학교 신인류 AI 사피엔스 · 기말 프로젝트</p>
-        <span>메시지 내용은 저장하지 않고, 익명 기능 사용 통계만 DB와 Analytics에 기록합니다.</span>
+        <span>원문과 이름은 저장하지 않고, 채널·관계 유형 같은 익명 통계만 DB와 Analytics에 기록합니다.</span>
       </footer>
     </main>
   );

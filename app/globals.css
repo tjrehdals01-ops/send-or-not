@@ -316,7 +316,7 @@ input::placeholder, textarea::placeholder { color: #a3a8ad; }
   border-bottom: 1px solid var(--line);
   border-top: 1px solid var(--line);
   display: grid;
-  grid-template-columns: 1fr 1.7fr .7fr .7fr;
+  grid-template-columns: .8fr 1fr 1.7fr .7fr .7fr;
 }
 .context-summary > div {
   border-right: 1px solid var(--line);
@@ -528,8 +528,8 @@ footer span { text-align: right; }
   .context-summary { grid-template-columns: 1fr 1fr; }
   .context-summary > div { border-bottom: 1px solid var(--line); padding: 14px 18px; }
   .context-summary > div:first-child { padding-left: 18px; }
-  .context-summary > div:nth-child(2) { border-right: 0; }
-  .context-summary > div:nth-child(3), .context-summary > div:nth-child(4) { border-bottom: 0; }
+  .context-summary > div:nth-child(2), .context-summary > div:nth-child(4) { border-right: 0; }
+  .context-summary > div:nth-child(5) { border-bottom: 0; }
   .context-summary > div:last-child { padding-right: 18px; }
   .finding-panel, .suggestion-panel { padding: 32px 20px; }
   .option-list button { min-height: 62px; padding: 9px 7px; }
