@@ -5,6 +5,7 @@ import { usageEvents } from "../../../db/schema";
 const allowedEvents = new Set([
   "select_channel",
   "select_language",
+  "select_recipient_category",
   "message_review_completed",
   "message_review_error",
   "select_tone",
@@ -14,12 +15,24 @@ const allowedEvents = new Set([
 const allowedChannels = new Set(["kakao", "instagram", "email"]);
 const allowedLanguages = new Set(["ko", "en"]);
 const allowedTones = new Set(["원본", "기본형", "단호하게", "정중하게"]);
+const allowedRecipientCategories = new Set([
+  "friend",
+  "colleague",
+  "professor_manager",
+  "family_partner",
+  "customer",
+  "new_contact",
+  "other",
+]);
+const allowedMessageLengthBuckets = new Set(["1_50", "51_150", "151_300", "301_1000"]);
 
 type EventPayload = {
   event?: unknown;
   channel?: unknown;
   language?: unknown;
   tone?: unknown;
+  recipient_category?: unknown;
+  message_length_bucket?: unknown;
 };
 
 function optionalAllowed(value: unknown, allowed: Set<string>) {
@@ -37,7 +50,15 @@ export async function POST(request: Request) {
     const channel = optionalAllowed(payload.channel, allowedChannels);
     const language = optionalAllowed(payload.language, allowedLanguages);
     const tone = optionalAllowed(payload.tone, allowedTones);
-    if (channel === undefined || language === undefined || tone === undefined) {
+    const recipientCategory = optionalAllowed(payload.recipient_category, allowedRecipientCategories);
+    const messageLengthBucket = optionalAllowed(payload.message_length_bucket, allowedMessageLengthBuckets);
+    if (
+      channel === undefined ||
+      language === undefined ||
+      tone === undefined ||
+      recipientCategory === undefined ||
+      messageLengthBucket === undefined
+    ) {
       return Response.json({ error: "이벤트 속성이 올바르지 않습니다." }, { status: 400 });
     }
 
@@ -47,6 +68,8 @@ export async function POST(request: Request) {
       channel,
       language,
       tone,
+      recipientCategory,
+      messageLengthBucket,
     });
 
     return new Response(null, { status: 204 });
@@ -58,7 +81,7 @@ export async function POST(request: Request) {
 export async function GET() {
   try {
     const db = getDb();
-    const [summary, recent] = await Promise.all([
+    const [summary, recent, channels, recipientCategories] = await Promise.all([
       db
         .select({ event: usageEvents.event, count: count() })
         .from(usageEvents)
@@ -73,10 +96,22 @@ export async function GET() {
         .where(sql`${usageEvents.createdAt} >= datetime('now', '-6 days')`)
         .groupBy(sql`date(${usageEvents.createdAt})`)
         .orderBy(sql`date(${usageEvents.createdAt})`),
+      db
+        .select({ channel: usageEvents.channel, count: count() })
+        .from(usageEvents)
+        .where(sql`${usageEvents.channel} IS NOT NULL`)
+        .groupBy(usageEvents.channel)
+        .orderBy(desc(count())),
+      db
+        .select({ recipientCategory: usageEvents.recipientCategory, count: count() })
+        .from(usageEvents)
+        .where(sql`${usageEvents.recipientCategory} IS NOT NULL`)
+        .groupBy(usageEvents.recipientCategory)
+        .orderBy(desc(count())),
     ]);
 
     return Response.json(
-      { summary, recent },
+      { summary, recent, channels, recipientCategories },
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch {

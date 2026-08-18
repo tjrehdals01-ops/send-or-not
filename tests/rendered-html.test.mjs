@@ -62,12 +62,20 @@ test("supports custom context, three channels, comparison, and two languages", a
   assert.match(page, /message_review_completed/);
   assert.match(page, /message_review_error/);
   assert.match(page, /fetch\("\/api\/events"/);
+  assert.match(messageModule, /type RecipientCategory/);
+  assert.match(page, /recipientCategoryLabels/);
+  assert.match(page, /message_length_bucket/);
   assert.match(eventRoute, /usageEvents/);
   assert.match(eventRoute, /allowedEvents/);
+  assert.match(eventRoute, /allowedRecipientCategories/);
   assert.match(dbSchema, /sqliteTable\(\s*"usage_events"/);
   assert.match(hosting, /"d1": "DB"/);
-  assert.doesNotMatch(dbSchema, /recipient|purpose|message/);
-  assert.doesNotMatch(page, /track\([^\n]+\{[^\n]*(recipient|purpose|message)/);
+  assert.doesNotMatch(dbSchema, /text\("(recipient|purpose|message|original_message)"\)/);
+  const trackCalls = page.match(/track\([\s\S]*?\);/g) ?? [];
+  assert.ok(trackCalls.length >= 7);
+  for (const call of trackCalls) {
+    assert.doesNotMatch(call, /\b(recipient|purpose|message)\s*:/);
+  }
   assert.doesNotMatch(page, /전 연인에게 연락|교수님·선배에게 질문/);
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);
 });

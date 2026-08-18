@@ -8,6 +8,13 @@
       "when": 1787034674943,
       "tag": "0000_skinny_mandroid",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1787057377426,
+      "tag": "0001_closed_korg",
+      "breakpoints": true
     }
   ]
 }

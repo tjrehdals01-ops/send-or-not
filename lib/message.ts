@@ -1,8 +1,17 @@
 export type MessageChannel = "kakao" | "instagram" | "email";
 export type OutputLanguage = "ko" | "en";
+export type RecipientCategory =
+  | "friend"
+  | "colleague"
+  | "professor_manager"
+  | "family_partner"
+  | "customer"
+  | "new_contact"
+  | "other";
 
 export type ReviewRequest = {
   recipient: string;
+  recipientCategory: RecipientCategory;
   purpose: string;
   message: string;
   channel: MessageChannel;
@@ -24,7 +33,7 @@ export type MessageAnalysis = {
 export type ReviewResponse = {
   analysis: MessageAnalysis;
   options: DraftOption[];
-  generatedBy: "openai";
+  generatedBy: "groq";
 };
 
 export const channelLabels: Record<MessageChannel, string> = {
@@ -36,6 +45,16 @@ export const channelLabels: Record<MessageChannel, string> = {
 export const languageLabels: Record<OutputLanguage, string> = {
   ko: "한국어",
   en: "English",
+};
+
+export const recipientCategoryLabels: Record<RecipientCategory, string> = {
+  friend: "친구",
+  colleague: "팀원·동료",
+  professor_manager: "교수·상사",
+  family_partner: "가족·연인",
+  customer: "고객·거래처",
+  new_contact: "처음 연락하는 사람",
+  other: "기타",
 };
 
 export function emailShareTitle(purpose: string, language: OutputLanguage) {
