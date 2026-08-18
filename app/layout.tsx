@@ -10,7 +10,7 @@ const notoSansKr = Noto_Sans_KR({
 });
 
 function getGoogleAnalyticsId() {
-  const value = process.env.GA_MEASUREMENT_ID?.trim().toUpperCase();
+  const value = (process.env.GA_MEASUREMENT_ID || "G-XF7RSF6KNT").trim().toUpperCase();
   return value && /^G-[A-Z0-9]+$/.test(value) ? value : null;
 }
 
