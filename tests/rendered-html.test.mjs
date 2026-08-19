@@ -87,6 +87,10 @@ test("supports custom context, three channels, comparison, and two languages", a
   assert.match(eventRoute, /completionRate/);
   assert.match(eventRoute, /resultUtilizationRate/);
   assert.match(eventRoute, /positiveFeedbackRate/);
+  assert.match(eventRoute, /feedbackParticipationRate/);
+  assert.match(eventRoute, /averageResponseTimeMs/);
+  assert.match(eventRoute, /copyRate/);
+  assert.match(eventRoute, /shareRate/);
   assert.match(eventRoute, /finalFailedReviews/);
   assert.match(eventRoute, /reviewsWithAnyError/);
   assert.doesNotMatch(eventRoute, /errorRate:/);

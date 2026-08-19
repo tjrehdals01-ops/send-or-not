@@ -286,7 +286,7 @@ export default function Home() {
       <header className="site-header">
         <a href="#main" className="brand" aria-label="보내도 돼 처음으로">보내도 돼?</a>
         <p>누구에게든, 보내기 전 한 번 더</p>
-        <span>beta 0.3</span>
+        <div className="header-actions"><a href="/kpi">KPI 보기</a><span>beta 0.3</span></div>
       </header>
 
       <div className="notice-bar">

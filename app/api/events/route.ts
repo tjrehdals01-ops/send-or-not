@@ -174,8 +174,11 @@ export async function GET() {
       recoveredReviewsResult,
       retriedReviewsResult,
       usedReviewsResult,
+      copiedReviewsResult,
+      sharedReviewsResult,
       feedbackReviewsResult,
       helpfulReviewsResult,
+      averageResponseTimeResult,
     ] = await Promise.all([
       db
         .select({ event: usageEvents.event, count: count() })
@@ -276,11 +279,23 @@ export async function GET() {
       db
         .select({ count: countDistinct(usageEvents.reviewId) })
         .from(usageEvents)
+        .where(eq(usageEvents.event, "copy_message")),
+      db
+        .select({ count: countDistinct(usageEvents.reviewId) })
+        .from(usageEvents)
+        .where(inArray(usageEvents.event, ["share_message", "share"])),
+      db
+        .select({ count: countDistinct(usageEvents.reviewId) })
+        .from(usageEvents)
         .where(eq(usageEvents.event, "result_feedback")),
       db
         .select({ count: countDistinct(usageEvents.reviewId) })
         .from(usageEvents)
         .where(and(eq(usageEvents.event, "result_feedback"), eq(usageEvents.feedback, "helpful"))),
+      db
+        .select({ average: sql<number>`avg(${usageEvents.durationMs})` })
+        .from(usageEvents)
+        .where(and(eq(usageEvents.event, "message_review_completed"), sql`${usageEvents.durationMs} IS NOT NULL`)),
     ]);
 
     const startedReviews = Number(startedReviewsResult[0]?.count ?? 0);
@@ -290,8 +305,11 @@ export async function GET() {
     const recoveredReviews = Number(recoveredReviewsResult[0]?.count ?? 0);
     const retriedReviews = Number(retriedReviewsResult[0]?.count ?? 0);
     const usedReviews = Number(usedReviewsResult[0]?.count ?? 0);
+    const copiedReviews = Number(copiedReviewsResult[0]?.count ?? 0);
+    const sharedReviews = Number(sharedReviewsResult[0]?.count ?? 0);
     const feedbackReviews = Number(feedbackReviewsResult[0]?.count ?? 0);
     const helpfulReviews = Number(helpfulReviewsResult[0]?.count ?? 0);
+    const averageResponseTimeMs = Math.round(Number(averageResponseTimeResult[0]?.average ?? 0));
 
     return Response.json(
       {
@@ -309,11 +327,17 @@ export async function GET() {
           startedReviews,
           completedReviews,
           usedReviews,
+          copiedReviews,
+          sharedReviews,
           feedbackReviews,
           helpfulReviews,
           completionRate: percent(completedReviews, startedReviews),
           resultUtilizationRate: percent(usedReviews, completedReviews),
+          copyRate: percent(copiedReviews, completedReviews),
+          shareRate: percent(sharedReviews, completedReviews),
+          feedbackParticipationRate: percent(feedbackReviews, completedReviews),
           positiveFeedbackRate: percent(helpfulReviews, feedbackReviews),
+          averageResponseTimeMs,
         },
         diagnostics: {
           finalFailedReviews: errorReviews,

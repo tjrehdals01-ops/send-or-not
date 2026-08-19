@@ -51,9 +51,11 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   letter-spacing: -.07em;
   text-decoration: none;
 }
-.site-header p, .site-header > span { font-size: 10px; margin: 0; }
+.site-header p, .header-actions { font-size: 10px; margin: 0; }
 .site-header p { color: var(--muted); }
-.site-header > span { font-variant-numeric: tabular-nums; text-align: right; }
+.header-actions { align-items: center; display: flex; gap: 14px; justify-content: flex-end; }
+.header-actions a { border-bottom: 1px solid var(--ink); color: inherit; font-weight: 700; padding-bottom: 2px; text-decoration: none; }
+.header-actions span { color: var(--muted); font-variant-numeric: tabular-nums; }
 .notice-bar {
   background: var(--ink);
   color: #f7f6f2;
