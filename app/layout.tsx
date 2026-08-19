@@ -18,14 +18,36 @@ export async function generateMetadata(): Promise<Metadata> {
   const requestHeaders = await headers();
   const host = requestHeaders.get("x-forwarded-host") || requestHeaders.get("host") || "bonaedo-dwae.skku-boot5.chatgpt.site";
   const protocol = requestHeaders.get("x-forwarded-proto") || (host.includes("localhost") ? "http" : "https");
-  const imageUrl = `${protocol}://${host}/og.png`;
+  const siteUrl = `${protocol}://${host}`;
+  const imageUrl = `${siteUrl}/og.png`;
+  const googleSiteVerification = process.env.GOOGLE_SITE_VERIFICATION?.trim();
 
   return {
+    metadataBase: new URL(siteUrl),
     title: "보내도 돼? — 누구에게든, 보내기 전 한 번 더",
     description: "받는 사람과 목적을 정하고, 카카오톡·Instagram DM·이메일 문장을 한국어와 영어로 점검하세요.",
+    alternates: {
+      canonical: "/",
+    },
+    robots: {
+      index: true,
+      follow: true,
+      googleBot: {
+        index: true,
+        follow: true,
+        "max-image-preview": "large",
+        "max-snippet": -1,
+        "max-video-preview": -1,
+      },
+    },
+    verification: googleSiteVerification ? { google: googleSiteVerification } : undefined,
     openGraph: {
       title: "보내도 돼?",
       description: "카카오톡·DM·이메일의 원문과 수정문을 비교하는 메시지 점검 도구",
+      url: "/",
+      siteName: "보내도 돼?",
+      locale: "ko_KR",
+      type: "website",
       images: [{ url: imageUrl, width: 1678, height: 941 }],
     },
     twitter: {
