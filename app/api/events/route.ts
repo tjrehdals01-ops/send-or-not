@@ -7,6 +7,7 @@ const allowedEvents = new Set([
   "select_language",
   "select_recipient_category",
   "review_started",
+  "review_retry",
   "message_review_completed",
   "message_review_error",
   "select_tone",
@@ -32,6 +33,16 @@ const allowedMessageLengthBuckets = new Set(["1_50", "51_150", "151_300", "301_1
 const allowedTrafficTypes = new Set(["user", "synthetic"]);
 const allowedFeedback = new Set(["helpful", "needs_improvement"]);
 const allowedShareMethods = new Set(["web_share"]);
+const allowedErrorCodes = new Set([
+  "rate_limited",
+  "provider_unavailable",
+  "provider_timeout",
+  "invalid_output",
+  "network_error",
+  "client_response_invalid",
+  "configuration_error",
+  "unknown_error",
+]);
 
 type EventPayload = {
   event?: unknown;
@@ -46,6 +57,9 @@ type EventPayload = {
   feedback?: unknown;
   method?: unknown;
   duration_ms?: unknown;
+  client_attempt?: unknown;
+  provider_attempts?: unknown;
+  error_code?: unknown;
 };
 
 function optionalAllowed(value: unknown, allowed: Set<string>) {
@@ -61,6 +75,13 @@ function optionalReviewId(value: unknown) {
 function optionalDuration(value: unknown) {
   if (value === undefined || value === null || value === "") return null;
   return typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= 120_000
+    ? value
+    : undefined;
+}
+
+function optionalAttempt(value: unknown, maximum: number) {
+  if (value === undefined || value === null || value === "") return null;
+  return typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= maximum
     ? value
     : undefined;
 }
@@ -86,6 +107,9 @@ export async function POST(request: Request) {
     const feedback = optionalAllowed(payload.feedback, allowedFeedback);
     const shareMethod = optionalAllowed(payload.method, allowedShareMethods);
     const durationMs = optionalDuration(payload.duration_ms);
+    const clientAttempt = optionalAttempt(payload.client_attempt, 20);
+    const providerAttempts = optionalAttempt(payload.provider_attempts, 5);
+    const errorCode = optionalAllowed(payload.error_code, allowedErrorCodes);
     if (
       channel === undefined ||
       language === undefined ||
@@ -96,7 +120,10 @@ export async function POST(request: Request) {
       reviewId === undefined ||
       feedback === undefined ||
       shareMethod === undefined ||
-      durationMs === undefined
+      durationMs === undefined ||
+      clientAttempt === undefined ||
+      providerAttempts === undefined ||
+      errorCode === undefined
     ) {
       return Response.json({ error: "이벤트 속성이 올바르지 않습니다." }, { status: 400 });
     }
@@ -114,6 +141,9 @@ export async function POST(request: Request) {
       feedback,
       shareMethod,
       durationMs,
+      clientAttempt,
+      providerAttempts,
+      errorCode,
     });
 
     return new Response(null, { status: 204 });
@@ -134,9 +164,13 @@ export async function GET() {
       tones,
       messageLengthBuckets,
       trafficTypes,
+      errorReasons,
       startedReviewsResult,
       completedReviewsResult,
-      errorReviewsResult,
+      attemptErrorReviewsResult,
+      unresolvedErrorReviewsResult,
+      recoveredReviewsResult,
+      retriedReviewsResult,
       usedReviewsResult,
       feedbackReviewsResult,
       helpfulReviewsResult,
@@ -192,6 +226,12 @@ export async function GET() {
         .groupBy(usageEvents.trafficType)
         .orderBy(desc(count())),
       db
+        .select({ errorCode: usageEvents.errorCode, count: count() })
+        .from(usageEvents)
+        .where(sql`${usageEvents.event} = 'message_review_error' AND ${usageEvents.errorCode} IS NOT NULL`)
+        .groupBy(usageEvents.errorCode)
+        .orderBy(desc(count())),
+      db
         .select({ count: countDistinct(usageEvents.reviewId) })
         .from(usageEvents)
         .where(eq(usageEvents.event, "review_started")),
@@ -203,6 +243,30 @@ export async function GET() {
         .select({ count: countDistinct(usageEvents.reviewId) })
         .from(usageEvents)
         .where(eq(usageEvents.event, "message_review_error")),
+      db
+        .select({ count: countDistinct(usageEvents.reviewId) })
+        .from(usageEvents)
+        .where(sql`${usageEvents.event} = 'message_review_error'
+          AND ${usageEvents.reviewId} IS NOT NULL
+          AND NOT EXISTS (
+            SELECT 1 FROM usage_events completed
+            WHERE completed.event = 'message_review_completed'
+              AND completed.review_id = ${usageEvents.reviewId}
+          )`),
+      db
+        .select({ count: countDistinct(usageEvents.reviewId) })
+        .from(usageEvents)
+        .where(sql`${usageEvents.event} = 'message_review_error'
+          AND ${usageEvents.reviewId} IS NOT NULL
+          AND EXISTS (
+            SELECT 1 FROM usage_events completed
+            WHERE completed.event = 'message_review_completed'
+              AND completed.review_id = ${usageEvents.reviewId}
+          )`),
+      db
+        .select({ count: countDistinct(usageEvents.reviewId) })
+        .from(usageEvents)
+        .where(eq(usageEvents.event, "review_retry")),
       db
         .select({ count: countDistinct(usageEvents.reviewId) })
         .from(usageEvents)
@@ -219,7 +283,10 @@ export async function GET() {
 
     const startedReviews = Number(startedReviewsResult[0]?.count ?? 0);
     const completedReviews = Number(completedReviewsResult[0]?.count ?? 0);
-    const errorReviews = Number(errorReviewsResult[0]?.count ?? 0);
+    const attemptErrorReviews = Number(attemptErrorReviewsResult[0]?.count ?? 0);
+    const errorReviews = Number(unresolvedErrorReviewsResult[0]?.count ?? 0);
+    const recoveredReviews = Number(recoveredReviewsResult[0]?.count ?? 0);
+    const retriedReviews = Number(retriedReviewsResult[0]?.count ?? 0);
     const usedReviews = Number(usedReviewsResult[0]?.count ?? 0);
     const feedbackReviews = Number(feedbackReviewsResult[0]?.count ?? 0);
     const helpfulReviews = Number(helpfulReviewsResult[0]?.count ?? 0);
@@ -239,14 +306,20 @@ export async function GET() {
         kpis: {
           startedReviews,
           completedReviews,
-          errorReviews,
           usedReviews,
           feedbackReviews,
           helpfulReviews,
           completionRate: percent(completedReviews, startedReviews),
           resultUtilizationRate: percent(usedReviews, completedReviews),
           positiveFeedbackRate: percent(helpfulReviews, feedbackReviews),
-          errorRate: percent(errorReviews, startedReviews),
+        },
+        diagnostics: {
+          finalFailedReviews: errorReviews,
+          reviewsWithAnyError: attemptErrorReviews,
+          recoveredReviews,
+          retriedReviews,
+          retryRecoveryRate: percent(recoveredReviews, retriedReviews),
+          errorReasons,
         },
       },
       { headers: { "Cache-Control": "no-store" } },

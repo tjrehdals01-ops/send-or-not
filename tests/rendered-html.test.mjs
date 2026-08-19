@@ -55,6 +55,10 @@ test("supports custom context, three channels, comparison, and two languages", a
   assert.match(apiRoute, /process\.env\.GROQ_API_KEY/);
   assert.match(apiRoute, /openai\/gpt-oss-20b/);
   assert.match(apiRoute, /type: "json_schema"/);
+  assert.match(apiRoute, /MAX_PROVIDER_ATTEMPTS = 3/);
+  assert.match(apiRoute, /retryDelay/);
+  assert.match(apiRoute, /providerAttempts/);
+  assert.match(apiRoute, /rate_limited/);
   assert.doesNotMatch(messageModule, /makeDrafts|analyzeMessage/);
   assert.match(layout, /og\.png/);
   assert.match(layout, /GA_MEASUREMENT_ID/);
@@ -62,6 +66,9 @@ test("supports custom context, three channels, comparison, and two languages", a
   assert.match(page, /message_review_completed/);
   assert.match(page, /message_review_error/);
   assert.match(page, /review_started/);
+  assert.match(page, /review_retry/);
+  assert.match(page, /reviewId \? reviewAttempt \+ 1 : 1/);
+  assert.match(page, /provider_attempts/);
   assert.match(page, /result_feedback/);
   assert.match(page, /share_message/);
   assert.match(page, /도움됐어요/);
@@ -79,7 +86,13 @@ test("supports custom context, three channels, comparison, and two languages", a
   assert.match(eventRoute, /completionRate/);
   assert.match(eventRoute, /resultUtilizationRate/);
   assert.match(eventRoute, /positiveFeedbackRate/);
-  assert.match(eventRoute, /errorRate/);
+  assert.match(eventRoute, /finalFailedReviews/);
+  assert.match(eventRoute, /reviewsWithAnyError/);
+  assert.doesNotMatch(eventRoute, /errorRate:/);
+  assert.match(eventRoute, /retryRecoveryRate/);
+  assert.match(eventRoute, /allowedErrorCodes/);
+  assert.match(eventRoute, /client_attempt/);
+  assert.match(eventRoute, /provider_attempts/);
   assert.match(dbSchema, /traffic_type/);
   assert.match(dbSchema, /review_id/);
   assert.match(dbSchema, /feedback/);

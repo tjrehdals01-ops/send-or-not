@@ -11,6 +11,9 @@ import {
 
 const GROQ_CHAT_COMPLETIONS_URL = "https://api.groq.com/openai/v1/chat/completions";
 const DEFAULT_MODEL = "openai/gpt-oss-20b";
+const MAX_PROVIDER_ATTEMPTS = 3;
+const PROVIDER_TIMEOUT_MS = 8_000;
+const retryableStatuses = new Set([408, 425, 429, 500, 502, 503, 504]);
 const channels: MessageChannel[] = ["kakao", "instagram", "email"];
 const languages: OutputLanguage[] = ["ko", "en"];
 const recipientCategories: RecipientCategory[] = [
@@ -75,8 +78,44 @@ type RewriteResult = {
   };
 };
 
-function jsonError(message: string, status: number) {
-  return NextResponse.json({ error: message }, { status, headers: { "Cache-Control": "no-store" } });
+type ProviderErrorCode =
+  | "rate_limited"
+  | "provider_unavailable"
+  | "provider_timeout"
+  | "invalid_output"
+  | "network_error";
+
+type ProviderFailure = {
+  ok: false;
+  code: ProviderErrorCode;
+  message: string;
+  status: number;
+  attempts: number;
+  retryable: boolean;
+};
+
+type ProviderSuccess = {
+  ok: true;
+  result: RewriteResult;
+  attempts: number;
+};
+
+function jsonError(
+  message: string,
+  status: number,
+  detail?: { code: string; providerAttempts: number; retryable: boolean },
+) {
+  return NextResponse.json(
+    {
+      error: message,
+      ...(detail ? {
+        code: detail.code,
+        providerAttempts: detail.providerAttempts,
+        retryable: detail.retryable,
+      } : {}),
+    },
+    { status, headers: { "Cache-Control": "no-store" } },
+  );
 }
 
 function readPayload(value: unknown): ReviewRequest | null {
@@ -110,6 +149,149 @@ function extractOutputText(response: unknown) {
   return typeof content === "string" ? content : null;
 }
 
+function isRewriteResult(value: unknown): value is RewriteResult {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<RewriteResult>;
+  return Boolean(
+    candidate.analysis &&
+    typeof candidate.analysis.label === "string" &&
+    typeof candidate.analysis.summary === "string" &&
+    Array.isArray(candidate.analysis.findings) &&
+    candidate.analysis.findings.every((finding) =>
+      finding && typeof finding.phrase === "string" && typeof finding.reason === "string") &&
+    candidate.drafts &&
+    typeof candidate.drafts.basic === "string" &&
+    typeof candidate.drafts.firm === "string" &&
+    typeof candidate.drafts.polite === "string",
+  );
+}
+
+function delay(milliseconds: number) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+function retryDelay(response: Response | null, attempt: number) {
+  const retryAfter = response?.headers.get("retry-after");
+  const retryAfterSeconds = retryAfter ? Number(retryAfter) : Number.NaN;
+  if (Number.isFinite(retryAfterSeconds) && retryAfterSeconds >= 0) {
+    return Math.min(retryAfterSeconds * 1000, 3_000);
+  }
+  return (attempt === 1 ? 500 : 1_200) + Math.floor(Math.random() * 200);
+}
+
+function requestBody(payload: ReviewRequest) {
+  return JSON.stringify({
+    model: process.env.GROQ_MODEL || DEFAULT_MODEL,
+    max_completion_tokens: 1800,
+    reasoning_effort: "low",
+    messages: [
+      { role: "system", content: buildInstructions() },
+      {
+        role: "user",
+        content: JSON.stringify({
+          recipient: payload.recipient.trim() || "입력하지 않음",
+          recipientCategory: recipientCategoryLabels[payload.recipientCategory],
+          purpose: payload.purpose.trim() || "입력하지 않음",
+          channel: channelLabels[payload.channel],
+          outputLanguage: languageLabels[payload.language],
+          originalMessage: payload.message.trim(),
+        }),
+      },
+    ],
+    response_format: {
+      type: "json_schema",
+      json_schema: {
+        name: "message_review",
+        strict: true,
+        schema: responseSchema,
+      },
+    },
+  });
+}
+
+async function requestReview(
+  apiKey: string,
+  payload: ReviewRequest,
+): Promise<ProviderSuccess | ProviderFailure> {
+  const body = requestBody(payload);
+  let failure: ProviderFailure = {
+    ok: false,
+    code: "provider_unavailable",
+    message: "AI 문장을 생성하지 못했어요.",
+    status: 502,
+    attempts: 1,
+    retryable: true,
+  };
+
+  for (let attempt = 1; attempt <= MAX_PROVIDER_ATTEMPTS; attempt += 1) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), PROVIDER_TIMEOUT_MS);
+    let response: Response | null = null;
+
+    try {
+      response = await fetch(GROQ_CHAT_COMPLETIONS_URL, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body,
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        const isRateLimited = response.status === 429;
+        failure = {
+          ok: false,
+          code: isRateLimited ? "rate_limited" : "provider_unavailable",
+          message: isRateLimited
+            ? "AI 요청이 몰려 자동 재시도를 마쳤어요. 잠시 후 다시 시도해주세요."
+            : "AI 연결이 일시적으로 불안정해요. 잠시 후 다시 시도해주세요.",
+          status: isRateLimited ? 429 : 502,
+          attempts: attempt,
+          retryable: retryableStatuses.has(response.status),
+        };
+      } else {
+        try {
+          const outputText = extractOutputText(await response.json());
+          const parsed = outputText ? JSON.parse(outputText) : null;
+          if (isRewriteResult(parsed)) return { ok: true, result: parsed, attempts: attempt };
+        } catch {
+          // Invalid model output is safe to retry without logging the private response body.
+        }
+        failure = {
+          ok: false,
+          code: "invalid_output",
+          message: "AI가 결과를 완성하지 못해 자동으로 다시 시도했어요. 잠시 후 다시 시도해주세요.",
+          status: 502,
+          attempts: attempt,
+          retryable: true,
+        };
+      }
+    } catch (error) {
+      const timedOut = error instanceof Error && error.name === "AbortError";
+      failure = {
+        ok: false,
+        code: timedOut ? "provider_timeout" : "network_error",
+        message: timedOut
+          ? "AI 응답 시간이 길어 자동 재시도를 마쳤어요. 잠시 후 다시 시도해주세요."
+          : "AI 연결이 일시적으로 끊겼어요. 잠시 후 다시 시도해주세요.",
+        status: timedOut ? 504 : 502,
+        attempts: attempt,
+        retryable: true,
+      };
+    } finally {
+      clearTimeout(timeout);
+    }
+
+    console.warn(`[rewrite] attempt ${attempt} failed: ${failure.code}`);
+    if (!failure.retryable || attempt === MAX_PROVIDER_ATTEMPTS) break;
+    await delay(retryDelay(response, attempt));
+  }
+
+  return failure;
+}
+
 function buildInstructions() {
   return `You are the message-review engine for the Korean service "보내도 돼?".
 
@@ -139,78 +321,36 @@ export async function POST(request: Request) {
   if (!payload) return jsonError("입력 내용을 다시 확인해주세요.", 400);
 
   const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) return jsonError("AI 연결 설정이 아직 완료되지 않았어요.", 503);
-
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 30_000);
-
-  try {
-    const groqResponse = await fetch(GROQ_CHAT_COMPLETIONS_URL, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: process.env.GROQ_MODEL || DEFAULT_MODEL,
-        max_completion_tokens: 1800,
-        reasoning_effort: "low",
-        messages: [
-          { role: "system", content: buildInstructions() },
-          {
-            role: "user",
-            content: JSON.stringify({
-              recipient: payload.recipient.trim() || "입력하지 않음",
-              recipientCategory: recipientCategoryLabels[payload.recipientCategory],
-              purpose: payload.purpose.trim() || "입력하지 않음",
-              channel: channelLabels[payload.channel],
-              outputLanguage: languageLabels[payload.language],
-              originalMessage: payload.message.trim(),
-            }),
-          },
-        ],
-        response_format: {
-          type: "json_schema",
-          json_schema: {
-            name: "message_review",
-            strict: true,
-            schema: responseSchema,
-          },
-        },
-      }),
-      signal: controller.signal,
+  if (!apiKey) {
+    return jsonError("AI 연결 설정이 아직 완료되지 않았어요.", 503, {
+      code: "configuration_error",
+      providerAttempts: 1,
+      retryable: false,
     });
-
-    if (!groqResponse.ok) {
-      const message = groqResponse.status === 429
-        ? "AI 요청이 잠시 많아요. 잠시 후 다시 시도해주세요."
-        : "AI 문장을 생성하지 못했어요. 잠시 후 다시 시도해주세요.";
-      return jsonError(message, groqResponse.status === 429 ? 429 : 502);
-    }
-
-    const outputText = extractOutputText(await groqResponse.json());
-    if (!outputText) return jsonError("AI가 결과를 완성하지 못했어요. 다시 시도해주세요.", 502);
-
-    const result = JSON.parse(outputText) as RewriteResult;
-    return NextResponse.json({
-      analysis: {
-        ...result.analysis,
-        findings: result.analysis.findings.slice(0, 4),
-      },
-      options: [
-        { label: "원본", note: "입력한 문장 그대로", text: payload.message.trim() },
-        { label: "기본형", note: "의미를 유지한 자연스러운 표현", text: result.drafts.basic },
-        { label: "단호하게", note: "요청과 원하는 답을 명확하게", text: result.drafts.firm },
-        { label: "정중하게", note: "상대의 상황을 고려한 표현", text: result.drafts.polite },
-      ],
-      generatedBy: "groq",
-    }, { headers: { "Cache-Control": "no-store" } });
-  } catch (error) {
-    const message = error instanceof Error && error.name === "AbortError"
-      ? "AI 응답 시간이 길어지고 있어요. 다시 시도해주세요."
-      : "AI 결과를 처리하지 못했어요. 다시 시도해주세요.";
-    return jsonError(message, 502);
-  } finally {
-    clearTimeout(timeout);
   }
+
+  const providerResponse = await requestReview(apiKey, payload);
+  if (!providerResponse.ok) {
+    return jsonError(providerResponse.message, providerResponse.status, {
+      code: providerResponse.code,
+      providerAttempts: providerResponse.attempts,
+      retryable: providerResponse.retryable,
+    });
+  }
+
+  const result = providerResponse.result;
+  return NextResponse.json({
+    analysis: {
+      ...result.analysis,
+      findings: result.analysis.findings.slice(0, 4),
+    },
+    options: [
+      { label: "원본", note: "입력한 문장 그대로", text: payload.message.trim() },
+      { label: "기본형", note: "의미를 유지한 자연스러운 표현", text: result.drafts.basic },
+      { label: "단호하게", note: "요청과 원하는 답을 명확하게", text: result.drafts.firm },
+      { label: "정중하게", note: "상대의 상황을 고려한 표현", text: result.drafts.polite },
+    ],
+    generatedBy: "groq",
+    providerAttempts: providerResponse.attempts,
+  }, { headers: { "Cache-Control": "no-store" } });
 }

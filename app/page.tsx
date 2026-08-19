@@ -23,6 +23,11 @@ type EventDetail = Record<string, string | number | undefined> & {
   review_id?: string;
 };
 
+type ReviewRequestError = Error & {
+  code?: string;
+  providerAttempts?: number;
+};
+
 function track(event: string, detail?: EventDetail) {
   if (typeof window === "undefined") return;
   const trafficType = new URLSearchParams(window.location.search).get("test") === "synthetic"
@@ -68,6 +73,7 @@ export default function Home() {
   const [copied, setCopied] = useState(false);
   const [shared, setShared] = useState(false);
   const [reviewId, setReviewId] = useState<string | null>(null);
+  const [reviewAttempt, setReviewAttempt] = useState(0);
   const [feedback, setFeedback] = useState<"helpful" | "needs_improvement" | null>(null);
 
   const resetResult = () => {
@@ -76,6 +82,7 @@ export default function Home() {
     setCopied(false);
     setShared(false);
     setReviewId(null);
+    setReviewAttempt(0);
     setFeedback(null);
   };
 
@@ -134,7 +141,8 @@ export default function Home() {
 
   const runCheck = async () => {
     if (!message.trim()) return;
-    const nextReviewId = crypto.randomUUID();
+    const nextReviewId = reviewId ?? crypto.randomUUID();
+    const nextClientAttempt = reviewId ? reviewAttempt + 1 : 1;
     const startedAt = performance.now();
     const eventContext = {
       channel,
@@ -142,14 +150,16 @@ export default function Home() {
       recipient_category: recipientCategory,
       message_length_bucket: getMessageLengthBucket(message.trim().length),
       review_id: nextReviewId,
+      client_attempt: nextClientAttempt,
     };
 
     setIsLoading(true);
     setErrorMessage("");
     setAnalyzed(false);
     setReviewId(nextReviewId);
+    setReviewAttempt(nextClientAttempt);
     setFeedback(null);
-    track("review_started", eventContext);
+    track(reviewId ? "review_retry" : "review_started", eventContext);
 
     try {
       const response = await fetch("/api/rewrite", {
@@ -160,10 +170,21 @@ export default function Home() {
       const result: unknown = await response.json();
 
       if (!response.ok) {
-        const error = result as { error?: string };
-        throw new Error(error.error || "AI 문장을 생성하지 못했어요.");
+        const apiError = result as { error?: string; code?: string; providerAttempts?: number };
+        throw Object.assign(
+          new Error(apiError.error || "AI 문장을 생성하지 못했어요."),
+          {
+            code: apiError.code || "provider_unavailable",
+            providerAttempts: apiError.providerAttempts || 1,
+          },
+        );
       }
-      if (!isReviewResponse(result)) throw new Error("AI 결과 형식이 올바르지 않아요. 다시 시도해주세요.");
+      if (!isReviewResponse(result)) {
+        throw Object.assign(
+          new Error("AI 결과 형식이 올바르지 않아요. 다시 시도해주세요."),
+          { code: "client_response_invalid", providerAttempts: 1 },
+        );
+      }
 
       setOptions(result.options);
       setAnalysis(result.analysis);
@@ -176,13 +197,17 @@ export default function Home() {
         ...eventContext,
         duration_ms: Math.round(performance.now() - startedAt),
         generator: result.generatedBy,
+        provider_attempts: result.providerAttempts,
       });
       window.setTimeout(() => document.getElementById("result")?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
     } catch (error) {
+      const requestError = error as ReviewRequestError;
       setErrorMessage(error instanceof Error ? error.message : "AI 문장을 생성하지 못했어요.");
       track("message_review_error", {
         ...eventContext,
         duration_ms: Math.round(performance.now() - startedAt),
+        error_code: requestError.code || "unknown_error",
+        provider_attempts: requestError.providerAttempts || 1,
       });
     } finally {
       setIsLoading(false);

@@ -34,6 +34,7 @@ export type ReviewResponse = {
   analysis: MessageAnalysis;
   options: DraftOption[];
   generatedBy: "groq";
+  providerAttempts: number;
 };
 
 export const channelLabels: Record<MessageChannel, string> = {
@@ -74,6 +75,8 @@ export function isReviewResponse(value: unknown): value is ReviewResponse {
     Array.isArray(candidate.analysis.findings) &&
     Array.isArray(candidate.options) &&
     candidate.options.length === 4 &&
-    candidate.options.every((option) => option && typeof option.text === "string"),
+    candidate.options.every((option) => option && typeof option.text === "string") &&
+    Number.isInteger(candidate.providerAttempts) &&
+    Number(candidate.providerAttempts) >= 1,
   );
 }
