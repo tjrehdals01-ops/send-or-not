@@ -1,4 +1,4 @@
-import { count, desc, sql } from "drizzle-orm";
+import { and, count, countDistinct, desc, eq, inArray, sql } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { usageEvents } from "../../../db/schema";
 
@@ -6,10 +6,14 @@ const allowedEvents = new Set([
   "select_channel",
   "select_language",
   "select_recipient_category",
+  "review_started",
   "message_review_completed",
   "message_review_error",
   "select_tone",
   "copy_message",
+  "result_feedback",
+  "share_message",
+  // Kept temporarily for clients that were open before this release.
   "share",
 ]);
 const allowedChannels = new Set(["kakao", "instagram", "email"]);
@@ -26,6 +30,8 @@ const allowedRecipientCategories = new Set([
 ]);
 const allowedMessageLengthBuckets = new Set(["1_50", "51_150", "151_300", "301_1000"]);
 const allowedTrafficTypes = new Set(["user", "synthetic"]);
+const allowedFeedback = new Set(["helpful", "needs_improvement"]);
+const allowedShareMethods = new Set(["web_share"]);
 
 type EventPayload = {
   event?: unknown;
@@ -36,11 +42,31 @@ type EventPayload = {
   recipient_category?: unknown;
   message_length_bucket?: unknown;
   traffic_type?: unknown;
+  review_id?: unknown;
+  feedback?: unknown;
+  method?: unknown;
+  duration_ms?: unknown;
 };
 
 function optionalAllowed(value: unknown, allowed: Set<string>) {
   if (value === undefined || value === null || value === "") return null;
   return typeof value === "string" && allowed.has(value) ? value : undefined;
+}
+
+function optionalReviewId(value: unknown) {
+  if (value === undefined || value === null || value === "") return null;
+  return typeof value === "string" && /^[a-zA-Z0-9-]{8,64}$/.test(value) ? value : undefined;
+}
+
+function optionalDuration(value: unknown) {
+  if (value === undefined || value === null || value === "") return null;
+  return typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= 120_000
+    ? value
+    : undefined;
+}
+
+function percent(numerator: number, denominator: number) {
+  return denominator > 0 ? Math.round((numerator / denominator) * 1000) / 10 : 0;
 }
 
 export async function POST(request: Request) {
@@ -56,13 +82,21 @@ export async function POST(request: Request) {
     const recipientCategory = optionalAllowed(payload.recipient_category, allowedRecipientCategories);
     const messageLengthBucket = optionalAllowed(payload.message_length_bucket, allowedMessageLengthBuckets);
     const trafficType = optionalAllowed(payload.traffic_type, allowedTrafficTypes);
+    const reviewId = optionalReviewId(payload.review_id);
+    const feedback = optionalAllowed(payload.feedback, allowedFeedback);
+    const shareMethod = optionalAllowed(payload.method, allowedShareMethods);
+    const durationMs = optionalDuration(payload.duration_ms);
     if (
       channel === undefined ||
       language === undefined ||
       tone === undefined ||
       recipientCategory === undefined ||
       messageLengthBucket === undefined ||
-      trafficType === undefined
+      trafficType === undefined ||
+      reviewId === undefined ||
+      feedback === undefined ||
+      shareMethod === undefined ||
+      durationMs === undefined
     ) {
       return Response.json({ error: "이벤트 속성이 올바르지 않습니다." }, { status: 400 });
     }
@@ -76,6 +110,10 @@ export async function POST(request: Request) {
       recipientCategory,
       messageLengthBucket,
       trafficType,
+      reviewId,
+      feedback,
+      shareMethod,
+      durationMs,
     });
 
     return new Response(null, { status: 204 });
@@ -96,6 +134,12 @@ export async function GET() {
       tones,
       messageLengthBuckets,
       trafficTypes,
+      startedReviewsResult,
+      completedReviewsResult,
+      errorReviewsResult,
+      usedReviewsResult,
+      feedbackReviewsResult,
+      helpfulReviewsResult,
     ] = await Promise.all([
       db
         .select({ event: usageEvents.event, count: count() })
@@ -147,7 +191,38 @@ export async function GET() {
         .where(sql`${usageEvents.event} = 'message_review_completed' AND ${usageEvents.trafficType} IS NOT NULL`)
         .groupBy(usageEvents.trafficType)
         .orderBy(desc(count())),
+      db
+        .select({ count: countDistinct(usageEvents.reviewId) })
+        .from(usageEvents)
+        .where(eq(usageEvents.event, "review_started")),
+      db
+        .select({ count: countDistinct(usageEvents.reviewId) })
+        .from(usageEvents)
+        .where(eq(usageEvents.event, "message_review_completed")),
+      db
+        .select({ count: countDistinct(usageEvents.reviewId) })
+        .from(usageEvents)
+        .where(eq(usageEvents.event, "message_review_error")),
+      db
+        .select({ count: countDistinct(usageEvents.reviewId) })
+        .from(usageEvents)
+        .where(inArray(usageEvents.event, ["copy_message", "share_message", "share"])),
+      db
+        .select({ count: countDistinct(usageEvents.reviewId) })
+        .from(usageEvents)
+        .where(eq(usageEvents.event, "result_feedback")),
+      db
+        .select({ count: countDistinct(usageEvents.reviewId) })
+        .from(usageEvents)
+        .where(and(eq(usageEvents.event, "result_feedback"), eq(usageEvents.feedback, "helpful"))),
     ]);
+
+    const startedReviews = Number(startedReviewsResult[0]?.count ?? 0);
+    const completedReviews = Number(completedReviewsResult[0]?.count ?? 0);
+    const errorReviews = Number(errorReviewsResult[0]?.count ?? 0);
+    const usedReviews = Number(usedReviewsResult[0]?.count ?? 0);
+    const feedbackReviews = Number(feedbackReviewsResult[0]?.count ?? 0);
+    const helpfulReviews = Number(helpfulReviewsResult[0]?.count ?? 0);
 
     return Response.json(
       {
@@ -161,6 +236,18 @@ export async function GET() {
           trafficTypes,
         },
         toneSelections: tones,
+        kpis: {
+          startedReviews,
+          completedReviews,
+          errorReviews,
+          usedReviews,
+          feedbackReviews,
+          helpfulReviews,
+          completionRate: percent(completedReviews, startedReviews),
+          resultUtilizationRate: percent(usedReviews, completedReviews),
+          positiveFeedbackRate: percent(helpfulReviews, feedbackReviews),
+          errorRate: percent(errorReviews, startedReviews),
+        },
       },
       { headers: { "Cache-Control": "no-store" } },
     );

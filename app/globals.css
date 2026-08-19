@@ -412,6 +412,32 @@ input::placeholder, textarea::placeholder { color: #a09f98; }
 }
 .share-button { background: #fff; border: 1px solid var(--ink); }
 .share-note { color: var(--muted); font-size: 9px; margin: 8px 0 0; text-align: right; }
+.feedback-panel {
+  align-items: center;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  display: flex;
+  gap: 18px;
+  justify-content: space-between;
+  margin-top: 28px;
+  padding: 16px 18px;
+}
+.feedback-panel strong, .feedback-panel span { display: block; }
+.feedback-panel strong { font-size: 11px; }
+.feedback-panel span { color: var(--muted); font-size: 9px; margin-top: 5px; }
+.feedback-panel > div:last-child { display: flex; gap: 6px; }
+.feedback-panel button {
+  background: #fff;
+  border: 1px solid var(--line-dark);
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 700;
+  min-height: 36px;
+  padding: 0 12px;
+}
+.feedback-panel button[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: #506400; }
+.feedback-panel button:disabled { cursor: default; opacity: .58; }
+.feedback-panel button[aria-pressed="true"]:disabled { opacity: 1; }
 .reset-button {
   background: transparent;
   border: 0;
@@ -506,6 +532,8 @@ footer span { text-align: right; }
   .result-actions { flex-direction: column-reverse; }
   .copy-button, .share-button { width: 100%; }
   .share-note { line-height: 1.5; text-align: left; }
+  .feedback-panel { align-items: stretch; flex-direction: column; }
+  .feedback-panel > div:last-child { display: grid; grid-template-columns: 1fr 1fr; }
   .criteria-section { gap: 10px; grid-template-columns: 24px 1fr; padding: 84px 20px; }
   .criteria-section dl { margin-top: 22px; }
   .criteria-section dl > div { grid-template-columns: 78px 1fr; }

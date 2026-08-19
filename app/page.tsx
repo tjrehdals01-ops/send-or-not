@@ -15,15 +15,20 @@ import {
 } from "../lib/message";
 
 type AnalyticsWindow = Window & {
-  gtag?: (command: "event", eventName: string, parameters?: Record<string, string>) => void;
+  gtag?: (command: "event", eventName: string, parameters?: Record<string, string | number>) => void;
 };
 
-function track(event: string, detail?: Record<string, string>) {
+type EventDetail = Record<string, string | number | undefined> & {
+  language?: string;
+  review_id?: string;
+};
+
+function track(event: string, detail?: EventDetail) {
   if (typeof window === "undefined") return;
   const trafficType = new URLSearchParams(window.location.search).get("test") === "synthetic"
     ? "synthetic"
     : "user";
-  const { language, ...rest } = detail ?? {};
+  const { language, review_id: reviewId, ...rest } = detail ?? {};
   const analyticsDetail = {
     ...rest,
     ...(language ? { output_language: language } : {}),
@@ -34,7 +39,7 @@ function track(event: string, detail?: Record<string, string>) {
   void fetch("/api/events", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ event, ...analyticsDetail }),
+    body: JSON.stringify({ event, ...analyticsDetail, ...(reviewId ? { review_id: reviewId } : {}) }),
     keepalive: true,
   }).catch(() => undefined);
 }
@@ -62,12 +67,16 @@ export default function Home() {
   const [editedDraft, setEditedDraft] = useState("");
   const [copied, setCopied] = useState(false);
   const [shared, setShared] = useState(false);
+  const [reviewId, setReviewId] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<"helpful" | "needs_improvement" | null>(null);
 
   const resetResult = () => {
     setAnalyzed(false);
     setErrorMessage("");
     setCopied(false);
     setShared(false);
+    setReviewId(null);
+    setFeedback(null);
   };
 
   const changeChannel = (next: MessageChannel) => {
@@ -125,9 +134,22 @@ export default function Home() {
 
   const runCheck = async () => {
     if (!message.trim()) return;
+    const nextReviewId = crypto.randomUUID();
+    const startedAt = performance.now();
+    const eventContext = {
+      channel,
+      language,
+      recipient_category: recipientCategory,
+      message_length_bucket: getMessageLengthBucket(message.trim().length),
+      review_id: nextReviewId,
+    };
+
     setIsLoading(true);
     setErrorMessage("");
     setAnalyzed(false);
+    setReviewId(nextReviewId);
+    setFeedback(null);
+    track("review_started", eventContext);
 
     try {
       const response = await fetch("/api/rewrite", {
@@ -151,20 +173,16 @@ export default function Home() {
       setCopied(false);
       setShared(false);
       track("message_review_completed", {
-        channel,
-        language,
-        recipient_category: recipientCategory,
-        message_length_bucket: getMessageLengthBucket(message.trim().length),
+        ...eventContext,
+        duration_ms: Math.round(performance.now() - startedAt),
         generator: result.generatedBy,
       });
       window.setTimeout(() => document.getElementById("result")?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "AI 문장을 생성하지 못했어요.");
       track("message_review_error", {
-        channel,
-        language,
-        recipient_category: recipientCategory,
-        message_length_bucket: getMessageLengthBucket(message.trim().length),
+        ...eventContext,
+        duration_ms: Math.round(performance.now() - startedAt),
       });
     } finally {
       setIsLoading(false);
@@ -182,7 +200,14 @@ export default function Home() {
   const copyDraft = async () => {
     await navigator.clipboard.writeText(editedDraft);
     setCopied(true);
-    track("copy_message", { channel, language, tone: options[selectedOption].label, recipient_category: recipientCategory });
+    track("copy_message", {
+      channel,
+      language,
+      tone: options[selectedOption].label,
+      recipient_category: recipientCategory,
+      review_id: reviewId ?? undefined,
+      action_source: "copy_button",
+    });
   };
 
   const shareDraft = async () => {
@@ -193,7 +218,14 @@ export default function Home() {
           text: editedDraft,
         });
         setShared(true);
-        track("share", { method: "web_share", content_type: channel, channel, language, recipient_category: recipientCategory });
+        track("share_message", {
+          method: "web_share",
+          content_type: channel,
+          channel,
+          language,
+          recipient_category: recipientCategory,
+          review_id: reviewId ?? undefined,
+        });
         return;
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError") return;
@@ -201,6 +233,27 @@ export default function Home() {
     }
     await navigator.clipboard.writeText(editedDraft);
     setCopied(true);
+    track("copy_message", {
+      channel,
+      language,
+      tone: options[selectedOption].label,
+      recipient_category: recipientCategory,
+      review_id: reviewId ?? undefined,
+      action_source: "share_fallback",
+    });
+  };
+
+  const submitFeedback = (value: "helpful" | "needs_improvement") => {
+    if (feedback) return;
+    setFeedback(value);
+    track("result_feedback", {
+      feedback: value,
+      channel,
+      language,
+      tone: options[selectedOption].label,
+      recipient_category: recipientCategory,
+      review_id: reviewId ?? undefined,
+    });
   };
 
   return (
@@ -412,6 +465,31 @@ export default function Home() {
                 <button type="button" className="copy-button" onClick={copyDraft}>{copied ? "복사했어요" : "전체 문장 복사"}</button>
               </div>
               <p className="share-note">휴대폰에서는 공유 창에서 카카오톡이나 Instagram을 선택할 수 있어요.</p>
+
+              <div className="feedback-panel">
+                <div>
+                  <strong>이 결과가 도움이 됐나요?</strong>
+                  <span>{feedback ? "응답이 저장됐어요." : "짧은 평가는 서비스 개선에만 사용해요."}</span>
+                </div>
+                <div role="group" aria-label="결과 만족도">
+                  <button
+                    type="button"
+                    aria-pressed={feedback === "helpful"}
+                    disabled={feedback !== null}
+                    onClick={() => submitFeedback("helpful")}
+                  >
+                    도움됐어요
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={feedback === "needs_improvement"}
+                    disabled={feedback !== null}
+                    onClick={() => submitFeedback("needs_improvement")}
+                  >
+                    아쉬워요
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
 

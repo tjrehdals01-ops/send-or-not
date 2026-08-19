@@ -61,6 +61,11 @@ test("supports custom context, three channels, comparison, and two languages", a
   assert.match(layout, /googletagmanager\.com\/gtag\/js/);
   assert.match(page, /message_review_completed/);
   assert.match(page, /message_review_error/);
+  assert.match(page, /review_started/);
+  assert.match(page, /result_feedback/);
+  assert.match(page, /share_message/);
+  assert.match(page, /도움됐어요/);
+  assert.match(page, /아쉬워요/);
   assert.match(page, /fetch\("\/api\/events"/);
   assert.match(messageModule, /type RecipientCategory/);
   assert.match(page, /recipientCategoryLabels/);
@@ -71,7 +76,13 @@ test("supports custom context, three channels, comparison, and two languages", a
   assert.match(eventRoute, /allowedEvents/);
   assert.match(eventRoute, /allowedRecipientCategories/);
   assert.match(eventRoute, /allowedTrafficTypes/);
+  assert.match(eventRoute, /completionRate/);
+  assert.match(eventRoute, /resultUtilizationRate/);
+  assert.match(eventRoute, /positiveFeedbackRate/);
+  assert.match(eventRoute, /errorRate/);
   assert.match(dbSchema, /traffic_type/);
+  assert.match(dbSchema, /review_id/);
+  assert.match(dbSchema, /feedback/);
   assert.match(dbSchema, /sqliteTable\(\s*"usage_events"/);
   assert.match(hosting, /"d1": "DB"/);
   assert.doesNotMatch(dbSchema, /text\("(recipient|purpose|message|original_message)"\)/);
