@@ -13,7 +13,7 @@ const GROQ_CHAT_COMPLETIONS_URL = "https://api.groq.com/openai/v1/chat/completio
 const DEFAULT_MODEL = "openai/gpt-oss-20b";
 const MAX_PROVIDER_ATTEMPTS = 3;
 const PROVIDER_TIMEOUT_MS = 8_000;
-const retryableStatuses = new Set([408, 425, 429, 500, 502, 503, 504]);
+const retryableStatuses = new Set([400, 408, 409, 422, 425, 429, 500, 502, 503, 504]);
 const channels: MessageChannel[] = ["kakao", "instagram", "email"];
 const languages: OutputLanguage[] = ["ko", "en"];
 const recipientCategories: RecipientCategory[] = [
@@ -80,6 +80,8 @@ type RewriteResult = {
 
 type ProviderErrorCode =
   | "rate_limited"
+  | "provider_rejected"
+  | "provider_auth_error"
   | "provider_unavailable"
   | "provider_timeout"
   | "invalid_output"
@@ -241,12 +243,25 @@ async function requestReview(
 
       if (!response.ok) {
         const isRateLimited = response.status === 429;
+        const isProviderRejected = response.status === 400 || response.status === 409 || response.status === 422;
+        const isAuthError = response.status === 401 || response.status === 403;
+        const code: ProviderErrorCode = isRateLimited
+          ? "rate_limited"
+          : isProviderRejected
+            ? "provider_rejected"
+            : isAuthError
+              ? "provider_auth_error"
+              : "provider_unavailable";
         failure = {
           ok: false,
-          code: isRateLimited ? "rate_limited" : "provider_unavailable",
+          code,
           message: isRateLimited
             ? "AI 요청이 몰려 자동 재시도를 마쳤어요. 잠시 후 다시 시도해주세요."
-            : "AI 연결이 일시적으로 불안정해요. 잠시 후 다시 시도해주세요.",
+            : isProviderRejected
+              ? "AI가 결과 형식을 완성하지 못해 자동으로 다시 시도했어요. 잠시 후 다시 시도해주세요."
+              : isAuthError
+                ? "AI 연결 설정을 확인하고 있어요. 관리자에게 문의해주세요."
+                : "AI 연결이 일시적으로 불안정해요. 잠시 후 다시 시도해주세요.",
           status: isRateLimited ? 429 : 502,
           attempts: attempt,
           retryable: retryableStatuses.has(response.status),

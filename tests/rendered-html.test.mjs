@@ -59,6 +59,7 @@ test("supports custom context, three channels, comparison, and two languages", a
   assert.match(apiRoute, /retryDelay/);
   assert.match(apiRoute, /providerAttempts/);
   assert.match(apiRoute, /rate_limited/);
+  assert.match(apiRoute, /provider_rejected/);
   assert.doesNotMatch(messageModule, /makeDrafts|analyzeMessage/);
   assert.match(layout, /og\.png/);
   assert.match(layout, /GA_MEASUREMENT_ID/);

@@ -35,6 +35,8 @@ const allowedFeedback = new Set(["helpful", "needs_improvement"]);
 const allowedShareMethods = new Set(["web_share"]);
 const allowedErrorCodes = new Set([
   "rate_limited",
+  "provider_rejected",
+  "provider_auth_error",
   "provider_unavailable",
   "provider_timeout",
   "invalid_output",
